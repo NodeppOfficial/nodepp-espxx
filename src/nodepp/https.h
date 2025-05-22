@@ -67,7 +67,7 @@ public:
             } else { path= init[1]; }
 
                    method= init[0]; if( version.empty() ) version = init[2];
-            string_t host= headers["Host"].empty() ? "localhost" : headers["Host"];
+            string_t host= !headers.has("Host") ? "localhost" : headers["Host"];
                       url= string::format( "http://%s%s%s", (char*)host, (char*)path, (char*)search );
         } else { version = init[0]; status = string::to_uint( init[1] ); }
 
@@ -142,9 +142,11 @@ namespace nodepp { namespace https {
 
         if( !url::is_valid( gfc->url ) ){ rej(except_t("invalid URL")); return; }
         
-        url_t    uri = url::parse( gfc->url );
-        string_t dir = uri.pathname + uri.search + uri.hash;
+        url_t uri = url::parse( gfc->url );
+        if( !gfc->query.empty() ){ uri.search=query::format(gfc->query); }
+        
         string_t dip = uri.hostname ; gfc->headers["Host"] = dip;
+        string_t dir = uri.pathname + uri.search + uri.hash;
        
         auto client = tls_t ([=]( https_t cli ){ 
             cli.set_timeout( gfc->timeout ); int c = 0; cli.write_header( gfc, dir );

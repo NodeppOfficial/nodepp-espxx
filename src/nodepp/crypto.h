@@ -201,7 +201,7 @@ public:
     xor_t( const string_t& key ) noexcept: obj( new NODE() ) {
         if( key.empty() ){ return; } obj->state = 1;
 
-        CTX item1; memset( &item1, 0, sizeof(CTX) );
+        CTX item1; // memset( &item1, 0, sizeof(CTX) );
             item1.key = key; item1.pos = 0;
 
         obj->ctx = ptr_t<CTX> ({ item1 });

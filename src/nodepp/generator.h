@@ -205,7 +205,7 @@ namespace nodepp { namespace _file_ {
 
         while( str->is_available() ){
         while( _read(str) == 1 ){ coNext; }
-           if( _read.state<= 0 ){ break; } state = 1; s += _read.data; 
+           if( _read.state<= 0 ){ break; } state=1; s+=_read.data; 
           for( auto &x: s )     { if( x == ch ){ break; } state++; }
            if( state<=s.size() ){ break; }
         }      str->set_borrow(s);
@@ -651,7 +651,7 @@ namespace nodepp { namespace _ws_ {
     /*─······································································─*/
 
     template< class T > bool server( T& cli ) {
-        auto data = cli.read(); cli.set_borrow( data ); int c=0;
+        auto data = cli.read(); cli.set_borrow( data );
         
         if( cli.read_header()!=0 ){ return 0; }
         if( !cli.headers["Sec-Websocket-Key"].empty() ){
@@ -674,7 +674,7 @@ namespace nodepp { namespace _ws_ {
 
     template< class T > bool client( T& cli, string_t url ) {
         string_t hsh = encoder::key::generate("abcdefghiABCDEFGHI0123456789",22);
-        string_t key = string::format("%s==",hsh.data()); int c = 0;
+        string_t key = string::format("%s==",hsh.data());
 
         header_t header ({
             { "Upgrade", "websocket" },

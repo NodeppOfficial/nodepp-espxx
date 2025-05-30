@@ -24,21 +24,21 @@ namespace task {
     ulong size(){ return queue.size(); }
     bool empty(){ return queue.empty(); }
 
-    void clear( void* address ){ 
+    void clear( void* address ){
         if( address == nullptr ){ return; }
-        *((bool*)( address )) = 0; 
+        *((bool*)( address )) = 0;
     }
 
     template< class T, class... V >
-    void* add( T cb, const V&... arg ){ 
-    //  if( queue.size() >= MAX_TASKS ){ return nullptr; }
+    void* add( T cb, const V&... arg ){
+        if( MAX_TASKS!=0 && queue.size()>=MAX_TASKS ){ return nullptr; }
         ptr_t<T>    clb = new T( cb );
         ptr_t<bool> blk = new bool(0);
-        ptr_t<bool> out = new bool(1); queue.push([=](){ 
+        ptr_t<bool> out = new bool(1); queue.push([=](){
             if( *out==0 ){ return -1; }
             if( *blk==1 ){ return  1; } *blk = 1;
-            int rs = (*clb) (arg...);   *blk = 0; 
-            return *out==0 ? -1 : rs; 
+            int rs = (*clb) (arg...);   *blk = 0;
+            return *out==0 ? -1 : rs;
         }); return (void*) &out;
     }
 
@@ -63,21 +63,21 @@ namespace loop {
     ulong size(){ return queue.size(); }
     bool empty(){ return queue.empty(); }
 
-    void clear( void* address ){ 
+    void clear( void* address ){
         if( address == nullptr ){ return; }
-            *((bool*)( address )) = 0; 
+        *((bool*)( address )) = 0;
     }
 
     template< class T, class... V >
-    void* add( T cb, const V&... arg ){ 
-    //  if( queue.size() >= MAX_TASKS ){ return nullptr; }
+    void* add( T cb, const V&... arg ){
+        if( MAX_TASKS!=0 && queue.size()>=MAX_TASKS ){ return nullptr; }
         ptr_t<T>    clb = new T( cb );
         ptr_t<bool> blk = new bool(0);
-        ptr_t<bool> out = new bool(1); queue.push([=](){ 
+        ptr_t<bool> out = new bool(1); queue.push([=](){
             if( *out==0 ){ return -1; }
             if( *blk==1 ){ return  1; } *blk = 1;
-            int rs = (*clb) (arg...);   *blk = 0; 
-            return *out==0 ? -1 : rs; 
+            int rs = (*clb) (arg...);   *blk = 0;
+            return *out==0 ? -1 : rs;
         }); return (void*) &out;
     }
 
@@ -102,21 +102,21 @@ namespace poll {
     ulong size(){ return queue.size(); }
     bool empty(){ return queue.empty(); }
 
-    void clear( void* address ){ 
+    void clear( void* address ){
         if( address == nullptr ){ return; }
-        *((bool*)( address )) = 0; 
+        *((bool*)( address )) = 0;
     }
 
     template< class T, class... V >
-    void* add( T cb, const V&... arg ){ 
-    //  if( queue.size() >= MAX_FILENO ){ return nullptr; }
+    void* add( T cb, const V&... arg ){
+        if( MAX_TASKS!=0 && queue.size()>=MAX_TASKS ){ return nullptr; }
         ptr_t<T>    clb = new T( cb );
         ptr_t<bool> blk = new bool(0);
-        ptr_t<bool> out = new bool(1); queue.push([=](){ 
+        ptr_t<bool> out = new bool(1); queue.push([=](){
             if( *out==0 ){ return -1; }
             if( *blk==1 ){ return  1; } *blk = 1;
-            int rs = (*clb) (arg...);   *blk = 0; 
-            return *out==0 ? -1 : rs; 
+            int rs = (*clb) (arg...);   *blk = 0;
+            return *out==0 ? -1 : rs;
         }); return (void*) &out;
     }
 
@@ -136,41 +136,41 @@ namespace poll {
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { namespace process {
-    
-    int threads = 0; 
-    
+
+    int threads = 0;
+
     /*─······································································─*/
 
-    void clear(){ 
+    void clear(){
         process::task::clear();
-        process::poll::clear(); 
-        process::loop::clear(); 
-        process::threads = 0; 
+        process::poll::clear();
+        process::loop::clear();
+        process::threads = 0;
     }
-    
+
     /*─······································································─*/
 
-    void clear( void* address ){ 
+    void clear( void* address ){
         if( address == nullptr ){ return; }
-            *((bool*)( address )) = 0; 
+        *((bool*)( address )) = 0;
     }
-    
+
     /*─······································································─*/
 
-    bool empty(){ return ( 
-        process::task::empty() && 
-        process::poll::empty() && 
-        process::loop::empty() && 
-        process::threads <= 0 
+    bool empty(){ return (
+        process::task::empty() &&
+        process::poll::empty() &&
+        process::loop::empty() &&
+        process::threads <= 0
     );}
 
     /*─······································································─*/
 
-    ulong size(){ 
-        return process::poll::size() + 
-               process::task::size() + 
-               process::loop::size() + 
-               process::threads      ; 
+    ulong size(){
+        return process::poll::size() +
+               process::task::size() +
+               process::loop::size() +
+               process::threads      ;
     }
 
     /*─······································································─*/
@@ -180,11 +180,11 @@ namespace nodepp { namespace process {
 
     /*─······································································─*/
 
-    int next(){ 
+    int next(){
     coStart
 
-        if( !process::task::empty() ){ process::task::next(); coNext; }
         if( !process::loop::empty() ){ process::loop::next(); coNext; }
+        if( !process::task::empty() ){ process::task::next(); coNext; }
         if( !process::poll::empty() ){ process::poll::next(); coNext; }
              process::yield();
 
@@ -193,8 +193,8 @@ namespace nodepp { namespace process {
 
     /*─······································································─*/
 
-    template< class T, class... V > 
-    void await( T cb, const V&... args ){ while( cb( args... ) != -1 ){ next(); } }
+    template< class T, class... V >
+    void await( T cb, const V&... args ){ while( cb( args... )!=-1 ){ next(); } }
 
 }}
 

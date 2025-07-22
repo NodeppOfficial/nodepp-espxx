@@ -1,9 +1,21 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_HTTP
 #define NODEPP_HTTP
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 #include "promise.h"
+#include "encoder.h"
 #include "query.h"
 #include "url.h"
 #include "tcp.h"
@@ -13,12 +25,12 @@
 
 namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_NODEPP {
 
-    string_t _get_http_status( uint status ){
-    switch( status ){
+    string_t _get_http_status( uint status ){ switch( status ){
         case 100:  return "Continue";                                           break;
         case 101:  return "Switching Protocols";                                break;
         case 102:  return "Processing";                                         break;
         case 103:  return "Early Hints";                                        break;
+        
         case 200:  return "OK";                                                 break;
         case 201:  return "Created";                                            break;
         case 202:  return "Accepted";                                           break;
@@ -29,6 +41,7 @@ namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_
         case 207:  return "Multi-Status";                                       break;
         case 208:  return "Already Reported";                                   break;
         case 226:  return "IM Used";                                            break;
+
         case 300:  return "Multiple Choices";                                   break;
         case 301:  return "Moved Permanently";                                  break;
         case 302:  return "Found";                                              break;
@@ -37,6 +50,7 @@ namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_
         case 305:  return "Use Proxy";                                          break;
         case 307:  return "Temporary Redirect";                                 break;
         case 308:  return "Permanent Redirect";                                 break;
+
         case 400:  return "Bad Request";                                        break;
         case 401:  return "Unauthorized";                                       break;
         case 402:  return "Payment Required";                                   break;
@@ -66,6 +80,7 @@ namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_
         case 429:  return "Too Many Requests";                                  break;
         case 431:  return "Request Header Fields Too Large";                    break;
         case 451:  return "Unavailable For Legal Reasons";                      break;
+
         case 500:  return "Internal Server Error";                              break;
         case 501:  return "Not Implemented";                                    break;
         case 502:  return "Bad Gateway";                                        break;
@@ -78,8 +93,8 @@ namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_
         case 509:  return "Bandwidth Limit Exceeded";                           break;
         case 510:  return "Not Extended";                                       break;
         case 511:  return "Network Authentication Required";                    break;
-        default: process::error(string::format("Status %d Not Found", status)); break;
-    } return ""; }
+        default: ARDUINO_ERROR(string::format("Status %d Not Found", status)); break;
+    } return nullptr; }
 
 }}
 
@@ -89,10 +104,12 @@ namespace nodepp { struct fetch_t {
 
     file_t    file ;
     string_t  body ;
+    query_t   query;
     
     /*─······································································─*/
 
     header_t  headers;
+    ulong     timeout = 0;
     
     /*─······································································─*/
 
@@ -104,16 +121,11 @@ namespace nodepp { struct fetch_t {
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class http_t : public socket_t, public NODEPP_GENERATOR_BASE {
-protected:
+namespace nodepp { class http_t : public socket_t { public:
 
-    bool      has_header=0;
+    uint      status=200;
     string_t  version;
-    
-public:
-
     header_t  headers;
-    int       status;
     query_t   query;
 
     string_t  protocol;
@@ -126,78 +138,75 @@ public:
 
     template< class... T > 
     http_t( const T&... args ) noexcept : socket_t( args... ) {}
-    
+
     /*─······································································─*/
 
     void     set_version( const string_t& msg ) noexcept { version = msg; }
 
     string_t get_version() const noexcept { return version; }
-    
+
     /*─······································································─*/
 
-    int read_header() noexcept {
-        static array_t<string_t> init; 
-        string_t base, line, a, b;
-        int idx;
-    gnStart
+    int read_header() noexcept { do { if( !is_available() ){ break; }
 
-        if( !is_available() )                              coEnd;
-        base = read_line(); protocol = "HTTP";
-        if( !regex::test( base,"HTTP/\\d\\.\\d" ) )        coEnd; 
-        init = regex::match_all( base, "[^\\s\t\r\n ]+" ); coNext;
-        
-        if( !regex::test( init[1], "^\\d+" ) ) {
-            auto idx = init[1].index_of([]( char x ){ return x=='?'; });
-              
-            if( idx > 0 ){
-                path   = init[1].slice( 0,idx );
-                search = init[1].slice(   idx );
-                query  = query::parse (search);
-            } else {
-                path   = init[1];
-            }
+        auto base= regex::get_memory( read_line(), "^([^ ]+) ([^ ]+) ([^\r]+)" );
+        if ( base.size() != 3 ){ break; } protocol = "HTTP";
 
-            method  = init[0]; if( version.empty() ) version = init[2];
-            url     = string::format( "https://%s%s%s", (char*)headers["Host"], (char*)path, (char*)search );
-        } else {
-            version = init[0]; status = string::to_int(init[1]);
-        }   coNext;
+        if ( !regex::test( base[1], "^\\d+" ) ) {
+            string_t host=!headers.has("Host")? "localhost": headers["Host"];
+                     
+            url    = string::format("http://%s%s", host.get(), base[1].get() );
+            path   = nodepp::url::path  ( url );
+            search = nodepp::url::search( url );
+            query  = nodepp::url::query ( url );
+            version= base[2]; method = base[0]; 
+            
+        } else { version = base[0]; status = string::to_uint( base[1] ); }
 
-        do {  line = read_line(); idx = line.index_of([]( char x ){ return x==':'; });
-            if( idx < 0 ){ break; } a = line.slice( 0,idx ).to_capital_case();                        
-                                    b = line.slice( idx+2 ); 
-                                    headers[a] = b;
-        } while ( true ); coSet(0); return 0;
-
-    gnStop
-    }
-    
-    /*─······································································─*/
-
-    void write_header( uint status, const header_t& headers ) noexcept {
-        if ( has_header == 1 ){ return; } has_header = 1;
-        string_t res; res += string::format("%s %u %s\r\n",(char*)version,status,(char*)HTTP_NODEPP::_get_http_status(status));
-        for( auto x:headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
-                                      res += "\r\n"; write( res ); if( method == "HEAD" ){ close(); }
-    }
-    
-    /*─······································································─*/
-
-    void write_header( const string_t& method, const string_t& path, const string_t& version, const header_t& headers ) noexcept { 
-        if ( has_header == 1 ){ return; } has_header = 1;
-        string_t res; res += string::format("%s %s %s\r\n",(char*)method,(char*)path,(char*)version);
-        for( auto x:headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
-                                      res += "\r\n"; write( res );
-    }
-    
-    /*─······································································─*/
-
-    void write_filestream( const string_t& method, const string_t& body, const file_t& file ){
-        if ( method != "POST" ){ return; }
-        if ( body.empty() && !file.is_available() ){ write("\r\n"); return; }
-        if (!body.empty() ){ write( body ); return; } while( file.is_available() ){ 
-            string_t s = file.read(); if( s.empty() ){ break; } write( s ); 
+        for(;;){
+            auto x = read_line();
+            auto y = x.find( ": " ); if( y==nullptr ){ break; }
+            headers[ x.slice( 0, y[0] ).to_capital_case() ] = x.slice( y[1], -2 );
         }
+
+    return 0; } while(0); return -1; }
+    
+    /*─······································································─*/
+
+    void write_header( const string_t& method, const string_t& path, const string_t& version, const header_t& headers ) const noexcept { 
+         string_t res = string::format("%s %s %s\r\n",(char*)method,(char*)path,(char*)version);
+         for( auto x:headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
+                                       res += "\r\n"; write( res ); if( memcmp( method.get(), "HEAD", 4 )==0 ){ close(); }
+    }
+    
+    /*─······································································─*/
+
+    void write_header( uint status, const header_t& headers ) const noexcept { 
+         string_t res = string::format("%s %u %s\r\n",(char*)version,status,(char*)HTTP_NODEPP::_get_http_status(status));
+         for( auto x:headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
+                                       res += "\r\n"; write( res ); if( memcmp( method.get(), "HEAD", 4 )==0 ){ close(); } 
+    }
+    
+    /*─······································································─*/
+
+    template< class T > void write_header( const T& fetch, const string_t& path ) const noexcept {
+
+        bool b = !fetch->body.empty() || fetch->file.is_available();
+        string_t res = string::format( "%s %s %s\r\n", fetch->method.get(), path.get(), fetch->version.get() );
+
+        for( auto x:fetch->headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
+        if ( !b )                          { res += "\r\n"; } 
+        if ( memcmp( fetch->method.get(), "HEAD", 4 )==0 ){ write(res); close(); return; }
+        if ( !b )                          { res += "\r\n"; write( res ); return; }
+        
+        if( !fetch->file.is_closed() ) { 
+            res += string::format("Content-Length: %lu\r\n\r\n",fetch->file.size()); write( res );
+            while( fetch->file.is_available() ){ write( fetch->file.read() ); } write( "\r\n" ); 
+        } elif( !fetch->body.empty() ) { 
+            res += string::format("Content-Length: %lu\r\n\r\n",fetch->body.size());
+            res += fetch->body; res += "\r\n"; write( res );
+        } else { res += "\r\n"; write( res ); }
+
     }
 
 };}
@@ -207,39 +216,37 @@ public:
 namespace nodepp { namespace http {
 
     template< class T > tcp_t server( T cb, agent_t* opt=nullptr ){
-        return tcp_t([=]( http_t cli ){ int c=0;
-            while(( c=cli.read_header() ) == 1 )
-                 { process::next(); }
-            if( c==0 ){ cb( cli ); }
-            else{ cli.close(); }
-        }, opt ); 
+        return tcp_t([=]( http_t cli ){
+             if( cli.read_header()==0 ){ cb( cli ); } 
+           else{ cli.close(); }
+        }, opt );
     }
-    
+
     /*─······································································─*/
 
-    promise_t<http_t,except_t> fetch ( const fetch_t& cfg, agent_t* opt=nullptr ) { 
-           auto agn = type::bind( opt==nullptr?agent_t():*opt );
-           auto gfc = type::bind( cfg ); 
+    promise_t<http_t,except_t> fetch ( const fetch_t& args, agent_t* opt=nullptr ) { 
+           auto agent = type::bind( opt ); auto fetch = type::bind( args ); 
     return promise_t<http_t,except_t>([=]( function_t<void,http_t> res, function_t<void,except_t> rej ){
 
-        if( !url::is_valid( gfc->url ) ){ rej(except_t("invalid URL")); return; }
-        
-        url_t    uri = url::parse( gfc->url );
-        string_t dip = uri.hostname ;
+        if( !url::is_valid( fetch->url ) ){ rej(except_t("invalid URL")); return; }
+             url_t uri = url::parse( fetch->url );
+
+        if( !fetch->query.empty() ){ uri.search=query::format(fetch->query); }
+        string_t dip = uri.hostname ; fetch->headers["Host"] = dip;
         string_t dir = uri.pathname + uri.search + uri.hash;
        
-        auto client = tcp_t ([=]( http_t cli ){ int c = 0;
-            cli.write_header( gfc->method, dir, gfc->version, gfc->headers );
-            cli.write_filestream( gfc->method, gfc->body, gfc->file );
-            while(( c=cli.read_header() )>0 ){ process::next(); }
-            if( c==0 ){ res( cli ); return; } else { 
-                rej(except_t("Could not connect to server"));
-                cli.close(); return; 
-            }
-        }, &agn );
+        auto skt = tcp_t([=]( http_t cli ){ 
 
-        client.onError([=]( except_t error ){ rej(error); });
-        client.connect( dip, uri.port );
+            cli.set_timeout( fetch->timeout ); cli.write_header( fetch, dir );
+            if( cli.read_header()==0 ){ res( cli ); } else { 
+                rej(except_t("Could not connect to server"));
+                cli.close();
+            }
+            
+        }, &agent );
+
+        skt.onError([=]( except_t error ){ rej(error); });
+        skt.connect( dip, uri.port );
 
     }); }
 

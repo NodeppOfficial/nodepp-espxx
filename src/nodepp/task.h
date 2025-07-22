@@ -1,103 +1,60 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_TASK
 #define NODEPP_TASK
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { namespace process { event_t<> onNext;
+namespace nodepp { namespace process { loop_t loop;
 
-namespace task {
+    /*─······································································─*/
 
-    queue_t<function_t<int>> queue;
+    ulong size(){ return _TASK_ + loop.size(); }
 
-    bool empty(){ return queue.empty(); }
+    void clear(){ _TASK_=0; loop.clear(); }
 
-    ulong size(){ return queue.size(); }
+    bool empty(){ return size() <= 0; }
 
-    void clear(){ queue.clear(); }
+    /*─······································································─*/
+
+    bool should_close(){ return empty() || _EXIT_; }
+
+    int next(){ coStart
+        coWait( loop.next()==1 );
+        process::yield();
+    coStop }
+
+    /*─······································································─*/
+
+    void clear( void* address ){
+         if( address == nullptr ){ return; }
+         memset( address, 0, sizeof(bool) );
+    }
+
+    /*─······································································─*/
+
+    template< class... T >
+    void* add( const T&... args ){ return loop.add( args... ); }
 
     template< class T, class... V >
-    void add( T cb, const V&... arg ){ 
-        ptr_t<type::pair<bool,T>> pb = new type::pair<bool,T>({ 0, cb });
-        queue.push([=](){ 
-            if(pb->first){ return 1; } pb->first = 1;
-            int rs = (pb->second)(arg...);
-            pb->first = 0; return rs; 
-        });
-    }
+    void await( T cb, const V&... args ){ while( ([&](){
 
-    void next(){ onNext.emit();
-        if( queue.empty() ){ return; }
-          auto x = queue.get();
-          int  y = x->data();
-          if ( y == 1 ){ queue.next(); }
-        elif ( y <  0 ){ queue.erase( x ); }
-    }
+        switch( cb( args... ) ){
+            case  1: next(); return 1; break;
+            case  0: /*---*/ return 0; break;
+            default: /*-------------*/ break;
+        }
 
-}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace loop {
-
-    queue_t<function_t<int>> queue;
-
-    bool empty(){ return queue.empty(); }
-
-    ulong size(){ return queue.size(); }
-
-    void clear(){ queue.clear(); }
-
-    template< class T, class... V >
-    void add( T cb, const V&... arg ){ 
-        ptr_t<type::pair<bool,T>> pb = new type::pair<bool,T>({ 0, cb });
-        queue.push([=](){ 
-            if(pb->first){ return 1; } pb->first = 1;
-            int rs = (pb->second)(arg...);
-            pb->first = 0; return rs; 
-        });
-    }
-
-    void next(){ onNext.emit();
-        if( queue.empty() ){ return; }
-          auto x = queue.get();
-          int  y = x->data();
-          if ( y == 1 ){ queue.next(); }
-        elif ( y <  0 ){ queue.erase( x ); }
-    }
-
-}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace poll {
-
-    queue_t<function_t<int>> queue;
-
-    bool empty(){ return queue.empty(); }
-
-    ulong size(){ return queue.size(); }
-
-    void clear(){ queue.clear(); }
-
-    template< class T, class... V >
-    void add( T cb, const V&... arg ){ 
-        ptr_t<type::pair<bool,T>> pb = new type::pair<bool,T>({ 0, cb });
-        queue.push([=](){ 
-            if(pb->first){ return 1; } pb->first = 1;
-            int rs = (pb->second)(arg...);
-            pb->first = 0; return rs; 
-        });
-    }
-
-    void next(){ onNext.emit();
-        if( queue.empty() ){ return; }
-          auto x = queue.get();
-          int  y = x->data();
-          if ( y == 1 ){ queue.next(); }
-        elif ( y <  0 ){ queue.erase( x ); }
-    }
-
-}
+    return -1; })()>=0 ){} }
 
 }}
 

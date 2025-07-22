@@ -9,8 +9,8 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_QUERY
-#define NODEPP_QUERY
+#ifndef NODEPP_COOKIE
+#define NODEPP_COOKIE
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -21,13 +21,13 @@
 
 namespace nodepp {
 
-    using query_t = map_t< string_t, string_t >;
+    using cookie_t = map_t< string_t, string_t >;
 
-    namespace query {
+    namespace cookie {
 
         query_t parse( string_t data ){
-            if ( data.empty() || data[0]!='?' ){ return query_t(); } query_t out;
-            auto mem = regex::get_memory( data, "[?&]([^= ]+)=([^?&]+)" );
+            if ( data.empty() ){ return query_t(); } query_t out;
+            auto mem = regex::get_memory( data, "([^= ]+)=([^;]+)" );
             auto beg = mem.begin();while( beg != mem.end() ){
                  out[ *beg ] = *( beg+1 );
             ++beg; ++beg; } return out;
@@ -35,10 +35,10 @@ namespace nodepp {
         
         /*─······································································─*/
         
-        string_t format( const query_t& data ){ 
+        string_t format( const cookie_t& data ){ 
             array_t<string_t> out; for( auto x:data.data() ) 
                    out.push( x.first + "=" + x.second );
-            return string::format("?%s",out.join("&").c_str());
+            return string::format("%s",out.join("; ").c_str());
         }
 
     }

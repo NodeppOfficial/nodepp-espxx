@@ -1,3 +1,14 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_VARIANT
 #define NODEPP_VARIANT
 
@@ -15,16 +26,18 @@ public:
     template< class T > 
     variant_t( const T& V ) : any_t(V), idx(is_valid(V)) {}
 
-    variant_t() : any_t(), idx(new int(-1)) {}
+    variant_t() : any_t(), idx( new int(-1) ) {}
     
     /*─······································································─*/
+
+    template< class T > 
+    void set( const T& f ) { idx = is_valid( f ); any_t::set( f ); }
 
     template< class T >
     T get() const noexcept { return any_t::get<T>(); }
 
-    template< class T > void set( const T& f ) { 
-        idx = is_valid( f ); any_t::set( f );
-    }
+    template< class T >
+    T as() const noexcept { return any_t::as<T>(); }
     
 protected:
 
@@ -32,7 +45,7 @@ protected:
     int* is_valid( T /*unused*/ ) { 
         int *idx = new int( get_index<T,Types...>::value );
         if (*idx > (int) sizeof...(Types) ){
-             process::error("invalid data type");
+             ARDUINO_ERROR("invalid data type");
         }    return idx;
     }
     

@@ -9,44 +9,73 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_NODEPP
-#define NODEPP_NODEPP
+#ifndef NODEPP_SEMAPHORE
+#define NODEPP_SEMAPHORE
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#include "import.h"
+#include "mutex.h"
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { namespace process { array_t<string_t> args;
+namespace nodepp { class semaphore_t {
+public:
 
+    semaphore_t() : obj( new NODE() ){}
+
+   ~semaphore_t() noexcept {
+        if( obj->addr == (void*)this )
+          { release(); }
+    };
+    
     /*─······································································─*/
 
-    template< class... T >
-    void error( const T&... msg ){ ARDUINO_ERROR( msg... ); }
+    void wait( uchar count ) const noexcept { 
+        
+        goto check; loop: worker::yield();
 
-    void reset(){ void(*callback) (void)=0; callback(); }
+        check:
+            obj->mutex.lock(); 
+            if( obj->ctx >= obj.count() ) obj->ctx = 0;
+            if( obj.count()>0 ) obj->ctx%=obj.count(); 
+            if( obj->ctx != count%obj.count() ) 
+              { obj->mutex.unlock(); goto loop; }
+            obj->addr=(void*)this;
+            obj->mutex.unlock();
 
-    void exit( int err=0 ){ _EXIT_= true; ::exit(err); }
-
+    }
+    
     /*─······································································─*/
 
-    void start(){
-         onSIGEXIT.once([=](){ process::exit(1); }); 
-         process::yield(); process::signal::start();
+    void wait() const noexcept { goto check;
+
+        loop: worker::yield();
+        
+        check:
+            obj->mutex.lock(); 
+            if((obj->ctx%2) != 0 )
+              { obj->mutex.unlock(); goto loop; }
+          ++obj->ctx; obj->addr=(void*)this;
+            obj->mutex.unlock();
+
     }
 
-    /*─······································································─*/
-
-    void stop(){ 
-        while(!process::should_close() )
-             { process::next(); }
-        process::exit();
+    void release() const noexcept {
+        obj->mutex.lock();
+        obj->addr=nullptr; 
+      ++obj->ctx; 
+        obj->mutex.unlock();
     }
 
-    /*─······································································─*/
+protected:
 
-}}
+    struct NODE {
+        void*   addr=nullptr;
+        uchar   ctx=0;
+        mutex_t mutex;
+    };  ptr_t<NODE> obj;
+
+};}
 
 /*────────────────────────────────────────────────────────────────────────────*/
 

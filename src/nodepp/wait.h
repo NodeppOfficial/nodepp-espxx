@@ -9,17 +9,17 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_EVENT
-#define NODEPP_EVENT
+#ifndef NODEPP_WAIT
+#define NODEPP_WAIT
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { template< class... A > class event_t {
+namespace nodepp { template< class T, class... A > class wait_t { 
 protected:
 
-    struct DONE {  bool      *out;
-        function_t<bool,A...> clb;
-    };
+    struct DONE {  bool        *out;
+        function_t<bool,T,A...> clb;
+    };  
     
     struct NODE {
         char skip     = 1;
@@ -28,27 +28,29 @@ protected:
 
 public:
 
-    event_t() noexcept : obj( new NODE() ) {}
+    wait_t() noexcept : obj( new NODE() ) {} 
 
-    virtual ~event_t() noexcept { free(); }
-
-    /*─······································································─*/
-
-    void* operator()( function_t<void,A...> func ) const noexcept { return on(func); }
+    virtual ~wait_t() noexcept { free(); }
 
     /*─······································································─*/
 
-    void* once( function_t<void,A...> func ) const noexcept {
+    void* operator()( T val, function_t<void> func ) const noexcept { return on(val,func); }
+
+    /*─······································································─*/
+
+    void* once( T val, function_t<void,A...> func ) const noexcept {
         ptr_t<bool> out = new bool(1); DONE ctx;
-        ctx.out=&out; ctx.clb=([=]( A... args ){
+        ctx.out=&out; ctx.clb=([=]( T arg, A... args ){
+            if( val != arg ){ return true;   }
             if(*out != 0   ){ func(args...); }
             if( out.null() ){ return false;  } *out = 0; return *out;
         }); obj->que.push(ctx); return &out;
     }
 
-    void* on( function_t<void,A...> func ) const noexcept {
+    void* on( T val, function_t<void,A...> func ) const noexcept {
         ptr_t<bool> out = new bool(1); DONE ctx;
-        ctx.out=&out; ctx.clb=([=]( A... args ){
+        ctx.out=&out; ctx.clb=([=]( T arg, A... args ){
+            if( val != arg ){ return true;   }
             if(*out != 0   ){ func(args...); }
             if( out.null() ){ return false;  } return *out;
         }); obj->que.push(ctx); return &out;
@@ -79,11 +81,11 @@ public:
 
     /*─······································································─*/
 
-    void emit( const A&... args ) const noexcept {
+    void emit( const T& arg, const A&... args ) const noexcept {
         if( is_paused() ){ return; } auto x=obj->que.first(); 
-        while( x!=nullptr && !obj->que.empty() ){   auto y=x->next;
-           if( *x->data.out == 0 )    { *x->data.out=0; }
-         elif( !x->data.clb(args...) ){ *x->data.out=0; }
+        while( x!=nullptr && !obj->que.empty() ){   auto y=x->next; 
+            if( *x->data.out == 0 )/*----*/{ *x->data.out=0; }
+          elif( !x->data.clb(arg,args...) ){ *x->data.out=0; } 
         x=y; }
     }
 

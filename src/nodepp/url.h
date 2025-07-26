@@ -1,19 +1,27 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_URL
 #define NODEPP_URL
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
+#include "encoder.h"
 #include "query.h"
 #include "regex.h"
+#include "map.h"
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp {
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-ptr_t<string_t> prot ({ "https", "http", "wss", "ws", "ftp", "ftps", "tcp", "tls", "udp", "dtls" });
-ptr_t<int>      prts ({  443   ,  80   ,  443 ,  80 ,  21  ,  21   ,  80  ,  443 ,  80  ,  443   });
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -36,10 +44,41 @@ struct url_t {
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
+map_t<string_t,uint> protocols ({
+     { "https", 443 }, { "wss" , 443 },
+     { "tls"  , 443 }, { "dtls", 443 },
+     { "http" ,  80 }, { "ws"  ,  80 },
+     { "tcp"  ,  80 }, { "udp" ,  80 },
+     { "ftp"  ,  21 }, { "ssh" ,  22 } 
+});
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 namespace url {
 
     bool is_valid( const string_t& URL ){
-        return regex::test( URL, "^\\w+://([^.]+)", "i" );
+        return regex::test( URL, "^\\w+://[^.]+", 1 );
+    }
+
+    /*.........................................................................*/
+
+    string_t normalize ( string_t msg ) { string_t res = msg;
+        while( regex::test( res, "%[a-z0-9]{2}", true ) ){
+            auto data = regex::match( res, "%[a-z0-9]{2}", true );
+            auto hex  = encoder::hex::set( data.slice(1) );
+            auto y    = string_t( (char*)&hex,hex.size() );
+            res = regex::replace_all( res, data, y );
+        }   return res;
+    }
+
+    /*.........................................................................*/
+
+    string_t unnormalize ( string_t msg ) { string_t res = msg;
+        while( regex::test( res, "[^a-z0-9%]", true ) ){
+            auto data = regex::match( res, "[^a-z0-9%]", true );
+            auto hex  = encoder::hex::get( data[0] );
+            res = regex::replace_all( res, data, "%"+hex );
+        }   return res;
     }
     
     /*─······································································─*/
@@ -54,13 +93,10 @@ namespace url {
     /*─······································································─*/
 
     string_t auth( const string_t& URL ){ string_t null; 
-        regex_t _a("//[^@/]+@"), _b("@"), _c("[@/]+"), _d(":");
+        regex_t _a("//\\w+:\\w+@");
         if( !is_valid(URL) || !_a.test( URL ) ) 
           { return null; } null = _a.match( URL );
-        if( !_b.test( null ) ){ return ""; }
-        if( !_d.test( null ) ){ return ""; }
-        if( null.size() <= 4 ){ return ""; }
-            return _c.replace_all( null, "" );
+            return null.slice( 2, -1 );
     }
 
     string_t user( const string_t& URL ){ string_t null; 
@@ -93,20 +129,19 @@ namespace url {
     }
 
     string_t path( const string_t& URL ){
-        string_t null; regex_t _a("/+[^?/#]+");
-        if( !is_valid(URL) || !_a.test(URL) ){ return ""; }
-	    auto vec = _a.match_all( URL );
-	if( vec.size() <= 1 ) return "/";
-	    vec.shift(); return vec.join("");
+        string_t null; regex_t _a("/[^/?#]+");
+        if ( !is_valid(URL) || !_a.test(URL) ){ return "/"; }
+             null = _a.match_all( URL ).slice(1).join("");
+	         return null.empty() ? "/" : null;
     }
 
-    string_t host( const string_t& URL ){ string_t null; 
-        regex_t _a("/\\w[^/#?]+"), _c("/"), _d("[^@]+@|@");
-        if( !is_valid(URL) ){ return null; }
-            null = _a.match( URL );
-        if( _d.test( null ) )
-          { null = _d.replace_all( null, "" ); }
-            return _c.replace_all( null, "" );
+    string_t host( const string_t& URL ){ 
+        regex_t _a("[/@][^/#?]+");
+        if(!is_valid(URL) ){ return nullptr; }
+            auto data = _a.match( URL ).slice(1);
+        if( regex::test( data, "@" ) )
+             return regex::replace( data, "[^@]+@", "" );
+        else return data;
     }
 
     string_t hostname( const string_t& URL ){ 
@@ -117,18 +152,19 @@ namespace url {
     
     /*─······································································─*/
 
-    int port( const string_t& URL ){ regex_t _a(":\\d+$"), _b("[^\\d]+");
-        string_t _host = host( URL ); string_t _prot = protocol( URL );
-        if( _a.test( _host ) ){
-            string_t _port = _a.match( _host );
-                   _port = _b.replace_all( _port, "" );
-                   return string::to_uint( _port );
-        } else {
-            for( ulong i=0; i<prot.size(); i++ ) {
-                regex_t _a(prot[i]); if( _a.test( _prot ) )
-                { return prts[i]; }
-            }
-        }   return 8000;
+    uint port( const string_t& URL ){ 
+
+        string_t _prot = protocol( URL );
+        string_t _host = host( URL ); 
+        regex_t  _a(":\\d+$");
+
+        if( !_host.empty() && _a.test( _host ) ){
+            return string::to_uint( _a.match( _host ).slice(1) );
+        } elif( !_prot.empty() ) {
+            if( protocols.has(_prot) ){ return protocols[_prot]; }
+        }   
+        
+        return 8000;
     }
     
     /*─······································································─*/
@@ -160,27 +196,33 @@ namespace url {
     
     /*─······································································─*/
 
-    string_t format( url_t* URL=nullptr ){ string_t _url; 
+    string_t format( const url_t& obj ){ string_t _url; 
 
-        if( URL == nullptr ){ return _url; }
-
-        if( !URL->href.empty() ){ return URL->href; }
-
-        if( !URL->origin.empty() ){ _url += URL->origin; }
-        else { 
-            _url += URL->protocol + "//";
-            _url += URL->auth + "@";
-            _url += URL->host;
+        if( !obj.href.empty() ){
+            _url += obj.href;
+        } elif( !obj.origin.empty() ){ 
+            _url += obj.origin; 
+        } else { 
+            _url += obj.protocol + "//";
+            _url += obj.auth + "@";
+            _url += obj.host;
         }
 
-        if( !URL->path.empty() ){ _url += URL->path; }
-        else {
-            _url += URL->pathname; 
-            _url += URL->search;
-        } 
+        if( !obj.path.empty() ){ 
+            _url += obj.path; 
+        } else {
+            _url += obj.pathname; 
+        }
 
-        if( !URL->hash.empty() ){ _url += URL->hash; }
-        return _url;
+        if( !obj.search.empty() ){
+            _url += obj.search;
+        } else {
+            _url += query::format( obj.query );
+        }
+
+        if( !obj.hash.empty() ){ _url += obj.hash; }
+
+        return is_valid(_url) ? _url : nullptr;
     }
 
 }

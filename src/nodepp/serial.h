@@ -9,18 +9,15 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_FILE
-#define NODEPP_FILE
+#ifndef NODEPP_SERIAL
+#define NODEPP_SERIAL
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 #if _KERNEL_ == NODEPP_KERNEL_ARDUINO
-    #include "os.h"
-    #include "event.h"
-    #include "generator.h"
-    #include "arduino/file.cpp"
+    #include "arduino/serial.cpp"
 #else
-    #error "This OS Does not support file.h"
+    #error "This OS Does not support serial.h"
 #endif
 
 /*────────────────────────────────────────────────────────────────────────────*/

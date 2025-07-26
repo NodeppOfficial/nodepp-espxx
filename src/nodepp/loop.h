@@ -9,65 +9,70 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_FUNCTION
-#define NODEPP_FUNCTION
+#ifndef NODEPP_LOOP
+#define NODEPP_LOOP
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { template< class V, class... T > class function_t {
-public:
-    
-    template< class F >
-    function_t( F f ) : func_ptr( new func_impl<F>(f) ) {}
-   
-    function_t() noexcept : func_ptr(nullptr) {}
-    
-    virtual ~function_t() noexcept {}
-    
-    /*─······································································─*/
-
-    bool has_value() const noexcept { return func_ptr.has_value(); }
-    ulong    count() const noexcept { return func_ptr.count(); }
-    bool     empty() const noexcept { return func_ptr.null();  }
-    bool      null() const noexcept { return func_ptr.null();  }
-    void      free() const noexcept {        func_ptr.free();  }
-    
-    /*─······································································─*/
-
-    explicit operator bool(void)    const noexcept { return func_ptr.null(); }
-    
-    V operator()( const T&... arg ) const          { return emit( arg... ); }
-    
-    V emit( const T&... arg ) const { 
-        if( !has_value() ){ return V(); }
-        return func_ptr->invoke(arg...); 
-    }
-    
+namespace nodepp { class loop_t {
 private:
 
-    class func_base { public:
-        virtual ~func_base() {}
-        virtual V invoke( const T&... arg ) const = 0;
-    };
-    
+    using NODE_CLB = function_t<int>;
+    struct waiter { bool blk; bool out; };
+
+protected:
+
+    struct NODE {
+        queue_t<NODE_CLB> queue;
+    };  ptr_t<NODE> obj;
+
+public:
+
+    virtual ~loop_t() noexcept {}
+
+    loop_t() noexcept : obj( new NODE() ) {}
+
     /*─······································································─*/
-    
-    template< class F >
-    class func_impl : public func_base {
 
-    public:
+    void clear() const noexcept { /*--*/ obj->queue.clear(); }
 
-        func_impl( const F& f ) : func(f) {}
-        virtual V invoke( const T&... arg ) const { return func(arg...); }
+    ulong size() const noexcept { return obj->queue.size (); }
 
-    private:
-        F func;
-    };
-    
+    bool empty() const noexcept { return obj->queue.empty(); }
+
     /*─······································································─*/
-    
-    ptr_t<func_base> func_ptr;
-    
+
+    int next() const noexcept {    
+    auto x = obj->queue.get(); if( x==nullptr ){ return -1; }
+    int  y = 0; bool z = x->next==nullptr;
+
+        switch( (y=x->data()) ){
+            case -1: obj->queue.erase(x); /*-----*/ break;
+            case  1: obj->queue.next();   /*-----*/ break;
+            default: /*----------------*/ return 0; break;
+        } 
+        
+    return z ? -1 : y; }
+
+    /*─······································································─*/
+
+    template< class T, class... V >
+    void* add( T cb, const V&... arg ) const noexcept {
+
+        ptr_t<waiter> tsk = new waiter();
+        auto clb=type::bind(cb); tsk->blk=0; tsk->out=1; 
+
+        obj->queue.push([=](){
+            if( tsk->out==0 ){ return -1; }
+            if( tsk->blk==1 ){ return  1; } 
+                tsk->blk =1; int rs=(*clb)( arg... );
+            if( clb.null()  ){ return -1; }  
+                tsk->blk =0;   return !tsk->out?-1:rs;
+        }); 
+        
+        return (void*) &tsk->out;
+    }
+
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/

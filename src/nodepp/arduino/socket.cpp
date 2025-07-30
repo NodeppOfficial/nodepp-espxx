@@ -303,14 +303,14 @@ public:
     virtual void free() const noexcept override {
 
         if( obj->state == -3 && obj.count() > 1 ){ resume(); return; }
-        if( obj->state == -2 ){ return; }
+        if( obj->state == -2 ){ return; } obj->state = -2;
        
         onUnpipe.clear(); onResume.clear();
         onError .clear(); onStop  .clear();
         onOpen  .clear(); onPipe  .clear();
         onData  .clear(); /*-------------*/
         
-        obj->state = -2; kill(); onDrain.emit(); onClose.emit();
+        kill(); onDrain.emit(); onClose.emit();
 
     }
 

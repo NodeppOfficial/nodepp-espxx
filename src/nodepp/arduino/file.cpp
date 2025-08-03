@@ -165,7 +165,7 @@ public:
         onOpen  .clear(); onPipe  .clear();
         onData  .clear(); /*-------------*/
         
-        onDrain.emit(); onClose.emit(); kill();
+        kill(); onDrain.emit(); onClose.emit();
 
     }
 
@@ -233,7 +233,7 @@ public:
         if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
         obj->feof = ::read( obj->fd, bf, sx );
         obj->feof = is_blocked(obj->feof)? -2 : obj->feof;
-        if( obj->feof <= 0 && obj->feof != -2 ){ close(); }
+        if( obj->feof <= 0 && obj->feof != -2 ){ free(); }
         return obj->feof;
     }
 
@@ -241,7 +241,7 @@ public:
         if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
         obj->feof = ::write( obj->fd, bf, sx );
         obj->feof = is_blocked(obj->feof)? -2 : obj->feof;
-        if( obj->feof <= 0 && obj->feof != -2 ){ close(); }
+        if( obj->feof <= 0 && obj->feof != -2 ){ free(); }
         return obj->feof;
     }
 

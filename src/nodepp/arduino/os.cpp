@@ -9,10 +9,6 @@
 
 namespace nodepp { namespace os {
     
-    uint cpus(){ return ::sysconf( _SC_NPROCESSORS_ONLN ); }
-    
-    /*─······································································─*/
-
     void exit( int err=0 ){ ::exit(err); }
 
     /*─······································································─*/

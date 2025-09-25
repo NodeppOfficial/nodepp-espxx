@@ -30,33 +30,33 @@ public:
 
     semaphore_t() :obj( new NODE() ){}
     virtual ~semaphore_t() noexcept {}
-    
+
     /*─······································································─*/
 
-    void wait( uchar count ) const noexcept { goto check; 
+    void wait( uchar count ) const noexcept { goto check;
 
         loop : worker::yield();
         check: obj->mtx.lock();
 
           if( obj->ctx >= obj.count() ){ obj->ctx =0; }
-          if( obj.count()>0 ){ obj->ctx%=obj.count(); } 
-          if( obj->ctx != count % obj.count() ) 
+          if( obj.count()>0 ){ obj->ctx%=obj.count(); }
+          if( obj->ctx != count % obj.count() )
             { obj->mtx.unlock(); goto loop; }
 
         obj->mtx.unlock();
 
     }
-    
+
     /*─······································································─*/
 
     void wait() const noexcept { goto check;
 
         loop : worker::yield();
-        check: obj->mtx.lock(); 
+        check: obj->mtx.lock();
 
           if( obj->ctx % 2 != 0 )
             { obj->mtx.unlock(); goto loop; }
-            
+
         obj->mtx.unlock();
 
     }

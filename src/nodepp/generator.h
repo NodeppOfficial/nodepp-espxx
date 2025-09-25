@@ -83,7 +83,7 @@ namespace nodepp { namespace generator { namespace file {
         if( pos < r[0] ){ str->del_borrow(); str->pos(r[0]); }
       elif( pos >=r[1] ){ coEnd; } } else { d = str->get_buffer_size(); }
 
-        if( data.empty() ){ 
+        if( data.empty() ){
             coWait((state=str->_read(str->get_buffer_data(),min(d,size)))==-2);
         if( state<=0 ){ coEnd; }
         if( state >0 ){ data=string_t(str->get_buffer_data(),(ulong)state); }}
@@ -438,7 +438,7 @@ namespace nodepp { namespace generator { namespace ws {
         if( cli.headers.has("Sec-Websocket-Key") ){
 
             string_t sec = cli.headers["Sec-Websocket-Key"];
-                auto sha = crypto::hash::SHA1(); sha.update( sec + SECRET );
+                auto sha = crypto::hash::SHA1(); sha.update( sec + NODEPP_WS_SECRET );
             string_t enc = encoder::base64::get( encoder::buffer::hex2buff(sha.get()) );
 
             cli.write_header( 101, header_t({
@@ -481,11 +481,11 @@ namespace nodepp { namespace generator { namespace ws {
         if( cli.headers.has("Sec-Websocket-Accept") ){
 
             string_t dta = cli.headers["Sec-Websocket-Accept"];
-                auto sha = crypto::hash::SHA1(); sha.update( key + SECRET );
+                auto sha = crypto::hash::SHA1(); sha.update( key + NODEPP_WS_SECRET );
             string_t enc = encoder::base64::get( encoder::buffer::hex2buff(sha.get()) );
 
             if( dta != enc ){
-                cli.onError.emit("secret key does not match"); 
+                cli.onError.emit("secret key does not match");
                 cli.close(); break;
             }   cli.stop (); return true;
 
@@ -526,28 +526,24 @@ namespace nodepp { namespace generator { namespace ws {
 
             if ( frame.LEN  > 125 ){
             if ( frame.LEN == 126 ){ size =2; }
-            if ( frame.LEN == 127 ){ size =4; }}
+            if ( frame.LEN == 127 ){ size =8; }}
             if ( frame.MSK == 1   ){ size+=4; }
 
         }
 
-        void read_ws_hdr_lensk( char* bf, ulong& size ){ size=0;
+        void read_ws_hdr_lensk( char* bf, ulong& size ){
 
-            if ( frame.LEN  > 125 ){
-            if ( frame.LEN == 126 ){ size=2; }
-            if ( frame.LEN == 127 ){ size=4; } frame.LEN=0;
-            for( ulong x=0; x < size; ++x )  { frame.LEN=frame.LEN << 8 | (uchar) bf[x]; }
-            }
+            if ( frame.MSK == 1 ){ size -= 4;
+            for( ulong x=0; x<4; ++x ){ frame.KEY[x] = bf[x+size]; }}
 
-            if ( frame.MSK == 1 ){ size=4; 
-            for( ulong x=0; x<size; ++x ){ frame.KEY[x] = bf[x]; }
-            }
+            if ( frame.LEN  > 125 ){ /*---*/ frame.LEN=0;
+            for( ulong x=0; x < size; ++x ){ frame.LEN=frame.LEN << 8 | (uchar) bf[x]; }}
 
         }
 
     public:
 
-    template<class T> coEmit( T* str, char* bf, const ulong& sx ) {
+    template<class T> coEmit( T* str, char* bf, const ulong& sx ) { int c=0;
     coBegin ; memset( bf, 0, sx ); size=0; data=0; len=0; key=0;
               memset( &frame, 0, sizeof(ws_frame_t) );
 
@@ -564,7 +560,7 @@ namespace nodepp { namespace generator { namespace ws {
         coWait( str->_read_( bf, sz, len )==1 );
 
         if( frame.MSK ){ for( ulong x=0; x<len; ++x ){
-            bf[x]=bf[x]^frame.KEY[key]; key=(key+1)%4;
+            bf[x]=bf[x]^frame.KEY[key]; key++; key%=4;
         }}
 
             frame.LEN -= len; data = len;
@@ -597,6 +593,10 @@ namespace nodepp { namespace generator { namespace ws {
                 bfx[idx] = (uchar)(byt[byt.size()-1]); ++idx;
             } else {
                 bfx[idx] = (uchar)( 127 ); ++idx;
+                bfx[idx] = (uchar)(byt[byt.size()-8]); ++idx;
+                bfx[idx] = (uchar)(byt[byt.size()-7]); ++idx;
+                bfx[idx] = (uchar)(byt[byt.size()-6]); ++idx;
+                bfx[idx] = (uchar)(byt[byt.size()-5]); ++idx;
                 bfx[idx] = (uchar)(byt[byt.size()-4]); ++idx;
                 bfx[idx] = (uchar)(byt[byt.size()-3]); ++idx;
                 bfx[idx] = (uchar)(byt[byt.size()-2]); ++idx;

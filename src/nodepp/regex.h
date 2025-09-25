@@ -35,8 +35,8 @@ protected:
                 obj->regex[_pos] == '('
              ){ _pos = get_next_key( _pos ); continue; }
             if( obj->regex[_pos] == '\\' ){ ++_pos; } ++_pos;
-        }   
-        
+        }
+
     return out; }
 
     int get_next_key( ulong _pos ){
@@ -269,19 +269,6 @@ protected:
     coFinish
     }
 
-public: 
-
-    virtual ~regex_t() noexcept {}
-
-    regex_t (): obj( new NODE() ){}
-
-    regex_t ( const string_t& reg, bool icase=false ): obj( new NODE() )
-            { obj->i = icase; obj->regex = reg; }
-
-    /*─······································································─*/
-
-    ptr_t<string_t> get_memory(){ return obj->memory.data(); }
-
     /*─······································································─*/
 
     ptr_t<ulong> _search( string_t _str, int off=0 ){
@@ -300,13 +287,27 @@ public:
         return res[0]==res[1] ? nullptr : res;
     }
 
+public:
+
+    virtual ~regex_t() noexcept { clear_memory(); }
+
+    regex_t (): obj( new NODE() ){}
+
+    regex_t ( const string_t& reg, bool icase=false ): obj( new NODE() )
+            { obj->i = icase; obj->regex = reg; }
+
+    /*─······································································─*/
+
+    void clear_memory() /*------*/ const noexcept { obj->memory.clear(); }
+
+    array_t<string_t> get_memory() const noexcept { return obj->memory.data(); }
+
     /*─······································································─*/
 
     ptr_t<ulong> search( string_t _str, uint off=0 ){
         ptr_t<ulong> out; while( off < _str.size() ){
-            out = _search( _str, off );
-            if( out != nullptr )
-              { break; } ++off;
+            if(( out=_search( _str, off ) ).null() )
+              { ++off; continue; } break;
         }   return out;
     }
 
@@ -325,7 +326,7 @@ public:
 
     array_t<string_t> split( const string_t& _str ){ ulong n = 0;
         auto idx = search_all( _str ); queue_t<string_t> out;
-        if ( idx.empty()  ){ return out.data(); }
+        if ( idx.empty()  ){ out.push(_str); return out.data(); }
         for( auto x : idx ){
              out.push( _str.slice( n, x[0] ) ); n = x[1];
         }    out.push( _str.slice( n ) ); return out.data();
@@ -466,14 +467,14 @@ namespace nodepp { namespace regex {
 
     /*─······································································─*/
 
-    template< class T, class... V > 
+    template< class T, class... V >
     string_t join( const string_t& c, const T& argc, const V&... args ){
         return string::join( c, argc, args... );
     }
 
     /*─······································································─*/
 
-    template< class... T > 
+    template< class... T >
     string_t format( const string_t& val, const T&... args ){
         auto count = string::count( []( string_t ){ return true; }, args... );
         queue_t<string_t> out; ulong idx=0;
@@ -485,7 +486,7 @@ namespace nodepp { namespace regex {
              out.push( val.slice( idx, x[0]    ) );
              out.push( string::get( y, args... ) ); idx = x[1];
         }    out.push( val.slice( idx ) );
-        
+
         return array_t<string_t>( out.data() ).join("");
     }
 

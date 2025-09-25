@@ -43,15 +43,15 @@ public:
     /*─······································································─*/
 
     inline int next() const noexcept { if( obj->queue.empty() ){ return -1; }
-    auto x = obj->queue.get();  if( x==nullptr ) /*--*/ { return -1; }
+    auto x = obj->queue.get(); if( x==nullptr ) /*----------*/ { return -1; }
     int  y = 0; bool z = x->next==nullptr;
 
         switch( (y=x->data()) ){
             case -1: obj->queue.erase(x); break;
             case  1: obj->queue.next();   break;
             default: /*----------------*/ break;
-        } 
-        
+        }
+
     return z ? -1 : y; }
 
     /*─······································································─*/
@@ -59,17 +59,17 @@ public:
     template< class T, class... V >
     inline void* add( T cb, const V&... arg ) const noexcept {
 
-        ptr_t<waiter> tsk = new waiter();
-        auto clb=type::bind(cb); tsk->blk=0; tsk->out=1; 
+        ptr_t<waiter> tsk = new waiter(); /*----------*/
+        auto clb=type::bind(cb); tsk->blk=0; tsk->out=1;
 
         obj->queue.push([=](){
             if( tsk->out==0 ){ return -1; }
-            if( tsk->blk==1 ){ return  1; } 
+            if( tsk->blk==1 ){ return  1; }
                 tsk->blk =1; int rs=(*clb)( arg... );
-            if( clb.null()  ){ return -1; }  
+            if( clb.null()  ){ return -1; }
                 tsk->blk =0;   return !tsk->out?-1:rs;
-        }); 
-        
+        });
+
         return (void*) &tsk->out;
     }
 

@@ -37,15 +37,15 @@ public:
 
     mutex_t() : obj( new NODE() ) {
         if( pthread_mutex_init(&obj->fd,NULL)!=0 )
-          { ARDUINO_ERROR("Cant Start Mutex");  }
+          { throw except_t("Cant Start Mutex");  }
             /*-----------------*/ obj->state=1;
     }
 
     virtual ~mutex_t() noexcept {
         if( obj->state == 0 ){ return; }
-        if( obj.count() > 1 ){ return; } 
+        if( obj.count() > 1 ){ return; }
     free(); }
-    
+
     /*─······································································─*/
 
     void free() const noexcept {
@@ -53,19 +53,19 @@ public:
         /*----------*/ obj->state = 0;
         pthread_mutex_destroy(&obj->fd);
     }
-    
+
     /*─······································································─*/
 
     template< class T, class... V >
     void emit( T callback, const V&... args ) const noexcept {
          lock(); callback( args... ); unlock();
     }
-    
+
     /*─······································································─*/
 
     void unlock() const noexcept { while( !_unlock() ){ worker::yield(); } }
     void lock()   const noexcept { while( !_lock  () ){ worker::yield(); } }
-    
+
     /*─······································································─*/
 
     inline bool _unlock() const noexcept { return pthread_mutex_unlock(&obj->fd)==0; }

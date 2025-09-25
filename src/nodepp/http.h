@@ -30,7 +30,7 @@ namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_
         case 101:  return "Switching Protocols";                                break;
         case 102:  return "Processing";                                         break;
         case 103:  return "Early Hints";                                        break;
-        
+
         case 200:  return "OK";                                                 break;
         case 201:  return "Created";                                            break;
         case 202:  return "Accepted";                                           break;
@@ -93,7 +93,7 @@ namespace nodepp { using header_t = map_t< string_t, string_t >; namespace HTTP_
         case 509:  return "Bandwidth Limit Exceeded";                           break;
         case 510:  return "Not Extended";                                       break;
         case 511:  return "Network Authentication Required";                    break;
-        default: ARDUINO_ERROR(string::format("Status %d Not Found", status)); break;
+        default: throw except_t(string::format("Status %d Not Found", status)); break;
     } return nullptr; }
 
 }}
@@ -105,28 +105,39 @@ namespace nodepp { struct fetch_t {
     file_t    file ;
     string_t  body ;
     query_t   query;
-    
+
     /*─······································································─*/
 
     header_t  headers;
     ulong     timeout = 0;
-    
+
     /*─······································································─*/
 
     string_t     url ;
     string_t  method = "GET";
     string_t version = "HTTP/1.0";
-    
+
 };}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace http {
+
+    regex_t reg0=regex_t( "^([^ ]+) ([^ ]+) ([^\r]+)" );
+    regex_t reg1=regex_t( "^\\d+"   );
+    regex_t reg2=regex_t( "^[^?#]+" );
+    regex_t reg3=regex_t( "?[^#]+"  );
+    regex_t reg4=regex_t( "#\\w+"   );
+
+}}
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { class http_t : public socket_t, public generator_t {
 protected:
 
-    generator::file::line line;
-    string_t raw;
-    
+    generator::file::line line; string_t raw;
+
 public:
 
     uint      status=200;
@@ -140,13 +151,13 @@ public:
     string_t  path;
     string_t  hash;
     string_t  url;
-    
+
     /*─······································································─*/
 
-    template< class... T > 
+    template< class... T >
     http_t( const T&... args ) noexcept : socket_t( args... ) {}
 
-    virtual ~http_t() noexcept {}
+    virtual ~http_t() noexcept { /*-------------------------*/ }
 
     /*─······································································─*/
 
@@ -158,51 +169,52 @@ public:
 
     int read_header() noexcept {
     bool b=1; coBegin
-    
-        if( !is_available() ){ coEnd; } coWait( line( this )==1 ); 
+
+        if( !is_available() ){ coEnd; } coWait( line( this )==1 );
         if( line.state <= 0 ){ coEnd; } raw = line.data;
 
-        do { coWait( line( this )==1 ); if( line.state<=0 ){ coEnd; } do {
-            auto x = line.data; auto y = x.find( ": " ); 
-        if( y==nullptr ){ b=0; break; }
+        do{ coWait( line( this )==1 ); if( line.state<=0 ){ coEnd; } do {
+            auto x = line.data; auto y = x.find( ": " );
+        if( y.null() ){ b=0; break; }
             headers[ x.slice( 0, y[0] ).to_capital_case() ] = x.slice( y[1], -2 );
-        } while(0); } while(b); 
+        } while(0); } while(b);
 
-        do{ auto base= regex::get_memory( raw,"^([^ ]+) ([^ ]+) ([^\r]+)" );
-        if( base.size() != 3 ){ break; } protocol = "HTTP";
+        do{ http::reg0.search_all(raw); auto base=http::reg0.get_memory();
+            http::reg0.clear_memory( ); protocol = "HTTP";
+        if( base.size() != 3 ){ break; } /*-------------*/
 
-        if( !regex::test( base[1], "^\\d+" ) ) {
+        if( !http::reg1.test( base[1] ) ){
             string_t host = headers.has("Host")? headers["Host"] : "localhost";
             url    = string::format("http://%s%s", host.get(), base[1].get() );
-            path   = regex::match( base[1],"^[^?#]+" );
-            search = regex::match( base[1], "?[^#]+" );
-            hash   = regex::match( base[1],  "#\\w+" );
+            path   = http::reg2.match( base[1] );
+            search = http::reg3.match( base[1] );
+            hash   = http::reg4.match( base[1] );
             query  = query::parse( search );
-            version= base[2]; method = base[0]; 
+            version= base[2]; method=base[0];
 
         } else { version = base[0]; status = string::to_uint( base[1] ); }
         } while(0);
-        
+
         coStay(0);
 
     coFinish }
-    
+
     /*─······································································─*/
 
-    void write_header( const string_t& method, const string_t& path, const string_t& version, const header_t& headers ) const noexcept { 
+    void write_header( const string_t& method, const string_t& path, const string_t& version, const header_t& headers ) const noexcept {
         string_t res = string::format("%s %s %s\r\n",(char*)method,(char*)path,(char*)version);
         for( auto x:headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
         /*-------------------------*/ res += "\r\n"; write( res ); if( method=="HEAD" ){ close(); }
    }
-   
+
    /*─······································································─*/
 
-   void write_header( uint status, const header_t& headers ) const noexcept { 
+   void write_header( uint status, const header_t& headers ) const noexcept {
         string_t res = string::format("%s %u %s\r\n",(char*)version,status,(char*)HTTP_NODEPP::_get_http_status(status));
         for( auto x:headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
-        /*-------------------------*/ res += "\r\n"; write( res ); if( method=="HEAD" ){ close(); } 
+        /*-------------------------*/ res += "\r\n"; write( res ); if( method=="HEAD" ){ close(); }
    }
-   
+
    /*─······································································─*/
 
    template< class T > void write_header( const T& fetch, const string_t& path ) const noexcept {
@@ -211,14 +223,14 @@ public:
        string_t res = string::format( "%s %s %s\r\n", fetch->method.get(), path.get(), fetch->version.get() );
 
        for( auto x:fetch->headers.data() ){ res += string::format("%s: %s\r\n",(char*)x.first.to_capital_case(),(char*)x.second); }
-       if ( !b ) /*--------------------*/ { res += "\r\n"; } 
+       if ( !b ) /*--------------------*/ { res += "\r\n"; }
        if ( fetch->method == "HEAD" )/**/ { write(res); close(); return; }
        if ( !b ) /*--------------------*/ { res += "\r\n"; write( res ); return; }
-       
-       if( !fetch->file.is_closed() ) { 
+
+       if( !fetch->file.is_closed() ) {
            res += string::format("Content-Length: %lu\r\n\r\n",fetch->file.size()); write( res );
-           while( fetch->file.is_available() ){ write( fetch->file.read() ); } //write( "\r\n" ); 
-       } elif( !fetch->body.empty() ) { 
+           while( fetch->file.is_available() ){ write( fetch->file.read() ); } //write( "\r\n" );
+       } elif( !fetch->body.empty() ) {
            res += string::format("Content-Length: %lu\r\n\r\n",fetch->body.size());
            res += fetch->body; /*res+="\r\n";*/ write( res );
        } else { res += "\r\n"; write( res ); }
@@ -237,23 +249,24 @@ namespace nodepp { namespace http {
             int c=0; while((c=cli.read_header())==1)
             /*------*/{ process::next(); }
             if( c==0 ){ cb(cli); return; }
-            
+
         cli.close(); }, opt );
     }
 
     /*─······································································─*/
 
-    promise_t<http_t,except_t> fetch ( const fetch_t& args, agent_t* opt=nullptr ) { 
-           auto agent = type::bind( opt ); auto fetch = type::bind( args ); 
-    return promise_t<http_t,except_t>([=]( function_t<void,http_t> res, function_t<void,except_t> rej ){
+    promise_t<http_t,except_t> fetch ( const fetch_t& args, agent_t* opt=nullptr ) {
+           auto agent = type::bind( opt ); auto fetch = type::bind( args );
+    return promise_t<http_t,except_t>([=]( res_t<http_t> res, rej_t<except_t> rej ){
 
         if( !url::is_valid( fetch->url ) ){ rej(except_t("invalid URL")); return; }
              url_t uri = url::parse( fetch->url );
 
         if( !fetch->query.empty() ){ uri.search=query::format(fetch->query); }
-        string_t dip = uri.hostname ; fetch->headers["Host"] = dip;
+        string_t dip = uri.hostname ; fetch->headers["Connection"] = "close";
+        /*-------------------------*/ fetch->headers["Host"] = dip;
         string_t dir = uri.pathname + uri.search + uri.hash;
-       
+
         auto skt = tcp_t([=]( http_t cli ){
 
             cli.set_timeout( fetch->timeout ); cli.write_header( fetch, dir );

@@ -31,7 +31,7 @@ private:
 protected:
 
     struct NODE {
-        int      state= 0;
+        char     state= 0;
         agent_t  agent;
         NODE_CLB func ;
     };  ptr_t<NODE> obj;
@@ -71,28 +71,28 @@ public:
                      sk.IPPROTO = IPPROTO_TCP;
 
             if( sk.socket( dns::lookup(host), port )<0 ){
-                self->onError.emit("Error while creating TCP"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while creating TCP");
+                self->close(); sk.free(); return;
             }   sk.set_sockopt( self->obj->agent );
 
             if( sk.bind()<0 ){
-                self->onError.emit("Error while binding TCP"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while binding TCP");
+                self->close(); sk.free(); return;
             }
 
-            if( sk.listen()<0 ){ 
-                self->onError.emit("Error while listening TCP"); 
-                self->close(); sk.free(); return; 
-            }   cb( sk ); self->onOpen.emit( sk ); 
-            
-        process::add( coroutine::add( COROUTINE(){
+            if( sk.listen()<0 ){
+                self->onError.emit("Error while listening TCP");
+                self->close(); sk.free(); return;
+            }   cb( sk ); self->onOpen.emit( sk );
+
+        process::loop( coroutine::add( COROUTINE(){
         int c=-1; coBegin
 
-            coWait((c=sk._accept()) == -2 ); if( c<0 ){ 
-                self->onError.emit("Error while accepting TCP"); 
-            coEnd; } 
-            
-            socket_t cli(c); 
+            coWait((c=sk._accept()) == -2 ); if( c<0 ){
+                self->onError.emit("Error while accepting TCP");
+            coEnd; }
+
+            socket_t cli(c);
 
             cli.set_sockopt( self->obj->agent );
             self->onSocket.emit(cli); self->obj->func(cli);
@@ -115,25 +115,24 @@ public:
                      sk.IPPROTO = IPPROTO_TCP;
 
             if( sk.socket( dns::lookup(host), port )<0 ){
-                self->onError.emit("Error while creating TCP"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while creating TCP");
+                self->close(); sk.free(); return;
             }   sk.set_sockopt( self->obj->agent );
 
-        process::add( coroutine::add( COROUTINE(){
+        process::loop( coroutine::add( COROUTINE(){
         int c=0; coBegin
 
             coWait((c=sk._connect()) == -2 ); if( c<=0 ){
                 self->onError.emit("Error while connecting TCP");
-                self->close(); coEnd;
-            }
+            coEnd; }
 
             sk.onDrain.once([=](){ self->close(); }); cb(sk);
             self->onSocket.emit(sk); self->obj->func(sk);
 
-            if( sk.is_available() ){ 
+            if( sk.is_available() ){
                 sk.onOpen      .emit(  );
-                self->onOpen   .emit(sk); 
-                self->onConnect.emit(sk); 
+                self->onOpen   .emit(sk);
+                self->onConnect.emit(sk);
             }
 
         coFinish })); }; clb();

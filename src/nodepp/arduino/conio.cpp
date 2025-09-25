@@ -28,6 +28,7 @@ namespace nodepp { namespace conio {
     /*─······································································─*/
 
     int perr( const string_t& args ){ return Serial.write( args.get(), args.size() ); }
+
     int pout( const string_t& args ){ return Serial.write( args.get(), args.size() ); }
 
     template< class V, class... T >
@@ -50,7 +51,7 @@ namespace nodepp { namespace conio {
     }
 
     /*─······································································─*/
-    
+
     int set_position( int x, int y ){ return pout(string::format("\033[%d;%dH",x,y)); }
     int gotoxy( int x, int y ){ return set_position( x, y ); }
 
@@ -63,7 +64,7 @@ namespace nodepp { namespace conio {
 
     /*─······································································─*/
 
-    int background( int state ){ 
+    int background( int state ){
         if( state & 0x10 ){ pout("\033[1m"); state &= 0x0f; }
         switch( state )   {
             case color::black:   return pout("\033[40m"); break;

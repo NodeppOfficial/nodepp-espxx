@@ -14,10 +14,10 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class worker_t { 
+namespace nodepp { class worker_t {
 private:
 
-    struct waiter { bool blk; bool out; }; 
+    struct waiter { bool blk; bool out; };
 
 protected:
 
@@ -31,9 +31,9 @@ protected:
     static void* callback( void* arg ){
         auto self = type::cast<worker_t>(arg);
         self->obj->mtx.emit([=](){ self->obj->state=1; });
-        while( self->obj->cb.emit()>=0 ){ worker::yield(); } 
+        while( self->obj->cb.emit()>=0 ){ worker::yield(); }
         self->obj->mtx.emit([=](){ self->free(); });
-        /*-------*/ delete self; worker::exit(); 
+        /*-------*/ delete self; worker::exit();
     return nullptr; }
 
 public:
@@ -46,35 +46,35 @@ public:
         wrk->blk = 0; wrk->out =1;
         obj->out = &wrk->out;
 
-        obj->cb = function_t<int>([=](){ 
+        obj->cb = function_t<int>([=](){
             if( wrk->out==0 ){ return -1; }
-            if( wrk->blk==1 ){ return  1; } 
+            if( wrk->blk==1 ){ return  1; }
                 wrk->blk =1; int rs=(*clb)( arg... );
-            if( clb.null()  ){ return -1; }  
+            if( clb.null()  ){ return -1; }
                 wrk->blk =0;   return !wrk->out?-1:rs;
-        }); 
+        });
 
     }
-    
+
     /*─······································································─*/
 
     worker_t() noexcept : obj( new NODE ) {}
 
     virtual ~worker_t() noexcept { if( obj.count()>1 ){ return; } free(); }
-    
+
     /*─······································································─*/
 
     void free() const noexcept {
-        if( obj->state == 0 ){ return; } 
-            obj->state=0; --_TASK_; 
+        if( obj->state == 0 ){ return; }
+            obj->state=0; --_TASK_;
     }
-    
+
     /*─······································································─*/
 
     int    pid() const noexcept { return type::cast<int>(obj->id); }
     void   off() const noexcept { process::clear( obj->out ); }
     void close() const noexcept { process::clear( obj->out ); }
-    
+
     /*─······································································─*/
 
     int add() const noexcept {
@@ -82,11 +82,11 @@ public:
 
         auto pth = pthread_create( &obj->id, NULL, &callback, (void*)self );
         if( pth!= 0 ){ delete self; return -1; }
-        
+
         pthread_detach( obj->id ); ++_TASK_;
 
-        while( obj->state==0 ){ /*------------*/ } 
-    //  while( obj->state==1 ){ process::next(); } 
+        while( obj->state==0 ){ /*------------*/ }
+    //  while( obj->state==1 ){ process::next(); }
 
         return 1;
     }
@@ -101,8 +101,8 @@ public:
 
         pthread_detach( obj->id ); ++_TASK_;
 
-        while( obj->state==0 ){ /*------------*/ } 
-        while( obj->state==1 ){ process::next(); } 
+        while( obj->state==0 ){ /*------------*/ }
+        while( obj->state==1 ){ process::next(); }
 
         return 1;
     }

@@ -11,7 +11,7 @@
 
 #ifndef NODEPP_MACROS
 #define NODEPP_MACROS
-#define ARDUINO_ERROR(...) throw except_t(__VA_ARGS__);
+#define ARDUINO_ERROR(...) do { console::error(__VA_ARGS__); exit(1); } while(0);
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -21,8 +21,6 @@
 /*────────────────────────────────────────────────────────────────────────────*/
 
 #define rand_range( A, B ) clamp( rand()%B, A, B )
-template< class T > T   min( const T& min, const T& max ){ return min < max ? min : max; }
-template< class T > T   max( const T& min, const T& max ){ return max > min ? max : min; }
 template< class T > T clamp( const T& val, const T& _min, const T& _max ){ return max( _min, min( _max, val ) ); }
 
 /*────────────────────────────────────────────────────────────────────────────*/
@@ -53,7 +51,8 @@ template< class T > T clamp( const T& val, const T& _min, const T& _max ){ retur
 
 #define onMain INIT(); void setup(){ \
        process::start(); INIT();     \
-} void loop(){ process::next(); } void INIT
+} void loop(){ process::next();      \
+} void INIT
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -99,7 +98,7 @@ int     _TASK_ = 0;
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#define HASH_TABLE_SIZE 8
+#define HASH_TABLE_SIZE 16
 #define UNBFF_SIZE      32
 #define CHUNK_SIZE      64
 
@@ -267,6 +266,10 @@ int     _TASK_ = 0;
 #define uint   unsigned int
 
 #endif
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+using null_t = decltype( nullptr );
 
 /*────────────────────────────────────────────────────────────────────────────*/
 

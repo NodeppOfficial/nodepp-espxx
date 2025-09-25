@@ -14,39 +14,39 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class debug_t {     
-protected: 
+namespace nodepp { class debug_t {
+protected:
 
-    struct NODE { 
+    struct NODE {
         string_t msg;
         void* ev = nullptr;
     };  ptr_t<NODE> obj;
 
 public: debug_t() noexcept : obj(new NODE()) { }
-    
+
     /*─······································································─*/
 
-    virtual ~debug_t() noexcept { 
-        if ( obj.count() == 2 ){ 
-	         console::log( obj->msg, "closed" );  
+    virtual ~debug_t() noexcept {
+        if ( obj.count() == 2 ){
+	         console::log( obj->msg, "closed" );
         }    process::onSIGERR.off( obj->ev );
     }
-    
+
     /*─······································································─*/
-    
+
     debug_t( const string_t& msg ) noexcept : obj(new NODE()) {
         obj->msg = msg; auto inp = type::bind( this );
         obj->ev  = process::onSIGERR([=](){ inp->error(); });
 	               console::log( obj->msg, "open" );
     }
-    
+
     /*─······································································─*/
 
     template< class... T >
     void log( const T&... args ) const noexcept { console::log( "--", args... ); }
 
-    void error() const noexcept { ARDUINO_ERROR( obj->msg ); }
-    
+    void error() const noexcept { console::error( obj->msg ); }
+
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/

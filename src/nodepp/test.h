@@ -20,18 +20,18 @@
 
 namespace nodepp {
 
-    class test_t { 
+    class test_t {
     protected:
 
         struct NODE {
             function_t<int> callback;
             string_t        name;
-        };  
-        
+        };
+
         struct DONE {
             queue_t<NODE> queue;
             void*  ev = nullptr;
-            int state = 1; 
+            int state = 1;
         };  ptr_t<DONE> obj;
 
     public:
@@ -50,13 +50,13 @@ namespace nodepp {
             onClose.emit(); obj->state =-1;
         }
 
-        test_t() noexcept : obj( new DONE() ) { 
+        test_t() noexcept : obj( new DONE() ) {
             auto self = type::bind( this );
-            obj->ev = process::onSIGERR.once([=]( ... ){ 
-                conio::error( "ERROR: " ); 
-                auto node = self->obj->queue.get(); 
+            obj->ev = process::onSIGERR.once([=]( ... ){
+                conio::error( "ERROR: " );
+                auto node = self->obj->queue.get();
                 conio::log( node->data.name );
-                conio::error( "FAILED\n\n" ); 
+                conio::error( "FAILED\n\n" );
             });
         }
 
@@ -64,7 +64,7 @@ namespace nodepp {
 
         template< class T >
         void set( const string_t& name, const T& callback ) noexcept {
-            NODE node; 
+            NODE node;
                  node.callback = callback;
                  node.name     = name;
             obj->queue.push( node );
@@ -75,13 +75,13 @@ namespace nodepp {
         void   ignore() const noexcept { obj->state =-1; }
 
         void unignore() const noexcept { obj->state = 1; }
-        
+
         /*-------------------------------------------------------------------*/
 
         void await() const noexcept { auto self = type::bind(this);
 
             process::await( coroutine::add( COROUTINE(){ int c=0;
-            coBegin; 
+            coBegin;
                 self->obj->queue.set( self->obj->queue.first() );
             coYield(1);
 
@@ -91,34 +91,34 @@ namespace nodepp {
 
                 conio::done("TEST:> "); conio::log( x->data.name );
                 c = x->data.callback(); if ( c == 1 ){
-                    conio::done( " PASSED\n" ); 
+                    conio::done( " PASSED\n" );
                     self->onDone.emit();
                 } elif ( c == -1 ) {
-                    conio::error( " FAILED\n" ); 
+                    conio::error( " FAILED\n" );
                     self->onFail.emit();
                 } else {
-                    conio::warn( " SKIPPED\n" ); 
+                    conio::warn( " SKIPPED\n" );
                     self->onSkip.emit();
-                }   
+                }
 
                 } while(0);
 
-                if( self->obj->queue.get()==nullptr )/*--*/{ self->onClose.emit(); coEnd; } 
-                if( self->obj->queue.get()->next==nullptr ){ self->onClose.emit(); coEnd; } 
+                if( self->obj->queue.get()==nullptr )/*--*/{ self->onClose.emit(); coEnd; }
+                if( self->obj->queue.get()->next==nullptr ){ self->onClose.emit(); coEnd; }
                     self->obj->queue.next();
-                  
+
             coGoto(1) ; coFinish
             }));
 
         }
-        
+
         /*-------------------------------------------------------------------*/
 
         void run() const noexcept { auto self = type::bind(this);
 
             process::add( coroutine::add( COROUTINE(){ int c=0;
-            coBegin; 
-                self->obj->queue.set( self->obj->queue.first() ); 
+            coBegin;
+                self->obj->queue.set( self->obj->queue.first() );
             coYield(1);
 
                 if( self->obj->state != 1 ){ coEnd; } do {
@@ -127,22 +127,22 @@ namespace nodepp {
 
                 conio::done("TEST:> "); conio::log( x->data.name );
                 c = x->data.callback(); if ( c == 1 ){
-                    conio::done( " PASSED\n" ); 
+                    conio::done( " PASSED\n" );
                     self->onDone.emit();
                 } elif ( c == -1 ) {
-                    conio::error( " FAILED\n" ); 
+                    conio::error( " FAILED\n" );
                     self->onFail.emit();
                 } else {
-                    conio::warn( " SKIPPED\n" ); 
+                    conio::warn( " SKIPPED\n" );
                     self->onSkip.emit();
-                }   
+                }
 
                 } while(0);
 
-                if( self->obj->queue.get()==nullptr )/*--*/{ self->onClose.emit(); coEnd; } 
-                if( self->obj->queue.get()->next==nullptr ){ self->onClose.emit(); coEnd; } 
+                if( self->obj->queue.get()==nullptr )/*--*/{ self->onClose.emit(); coEnd; }
+                if( self->obj->queue.get()->next==nullptr ){ self->onClose.emit(); coEnd; }
                     self->obj->queue.next();
-                  
+
             coGoto(1) ; coFinish
             }));
 
@@ -180,7 +180,7 @@ namespace nodepp {
 
 #define TEST_FAIL() return -1
 
-#define TEST_DONE() return  1 
+#define TEST_DONE() return  1
 
 /*────────────────────────────────────────────────────────────────────────────*/
 

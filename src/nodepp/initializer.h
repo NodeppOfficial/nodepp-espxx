@@ -14,11 +14,11 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { template< class T > class initializer_t : public ptr_t<T> { 
+namespace nodepp { template< class T > class initializer_t : public ptr_t<T> {
     public: initializer_t() noexcept : ptr_t<T>(){}
 
     /*─······································································─*/
-    
+
     initializer_t( const ptr_t<T>& arr ) noexcept : ptr_t<T>( arr ) {}
 
     template< class... V >
@@ -28,14 +28,14 @@ namespace nodepp { template< class T > class initializer_t : public ptr_t<T> {
            this->value_[index] = (T)item; ++index;
         }, head, tail... );
     }
-    
+
     initializer_t( const queue_t<T>& arr ) noexcept {
         this->resize( arr.size() ); auto raw = arr.data();
         type::copy( raw.begin(), raw.end(), this->begin() );
     }
-    
+
     initializer_t( const array_t<T>& arr ) noexcept {
-        this->resize( arr.size() ); 
+        this->resize( arr.size() );
         type::copy( arr.begin(), arr.end(), this->begin() );
     }
 
@@ -92,7 +92,7 @@ namespace nodepp { template< class T > class initializer_t : public ptr_t<T> {
                out = func( out, *addr );
         } return out;
     }
-    
+
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/

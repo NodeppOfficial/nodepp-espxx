@@ -14,64 +14,93 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
+#include "encoder.h"
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 namespace nodepp { template<class U, class V> class map_t {
 protected:
 
-    using T = type::pair< U, V >;
+    using T    = type::pair< U, V >;
+    using LIST = queue_t<void*>;
 
     struct NODE {
-        queue_t<T> queue;
+        ptr_t<LIST> table;
+        queue_t<T>  queue;
     };  ptr_t<NODE> obj;
+
+protected:
+
+    void append( const T& pair ) const noexcept {
+
+        auto  key = string::to_string(pair.first);
+        ulong idx = encoder::hash::get(key);
+        auto  n   = obj->table[idx].first();
+
+        while( n!=nullptr ){
+        auto itm = obj->queue.as(n->data); if( itm==nullptr ){ break; }
+        if ( itm->data.first == pair.first ){
+             itm->data.second = pair.second;
+        return; } n = n->next; }
+
+        obj->queue.push( pair );
+        obj->table[idx].push( obj->queue.last() );
+
+    }
 
 public:
 
-    template< class... O >
-    map_t( const T& argc, const O&... args ) noexcept : obj(new NODE()) {
-        append( argc, args... );
-    }
-
     template< ulong N >
     map_t( const T (&args) [N] ) noexcept : obj(new NODE()) {
-      for( auto &x: args ){ append(x); }
+        obj->table = ptr_t<LIST>( HASH_TABLE_SIZE );
+        for( auto &x: args ) { append(x); }
     }
 
-    map_t() noexcept : obj(new NODE()) {}
+    map_t() noexcept : obj(new NODE()) {
+        obj->table = ptr_t<LIST>( HASH_TABLE_SIZE );
+    }
 
     virtual ~map_t() noexcept {}
 
     /*─······································································─*/
 
     V& operator[]( const U& id ) const noexcept {
-        auto x = obj->queue.first();
 
-        while( !id.empty() && x != nullptr ){
-           if( x->data.first == id )
-             { return x->data.second; }
-         else{ x = x->next; }
-        }   append({ id, V() });
+        auto key = string::to_string( id );
+        ulong idx= encoder::hash::get(key);
+        auto n   = obj->table[idx].first();
+
+        while( n!=nullptr ){
+        auto itm = obj->queue.as(n->data); if( itm==nullptr ){ break; }
+        if ( itm->data.first==id ){ return itm->data.second; }
+        n = n->next; } append({ id, V() });
 
         return obj->queue.last()->data.second;
+
     }
 
     /*─······································································─*/
 
-    array_t<U> keys() const noexcept { array_t<U> result;
-        auto x = obj->queue.first(); while( x!=nullptr ){
-            result.push( x->data.first ); x=x->next;
-        }   return result;
-    }
+    bool      empty() const noexcept { return obj->queue.empty(); }
+    ulong      size() const noexcept { return obj->queue.size(); }
+    ptr_t<T>   data() const noexcept { return obj->queue.data(); }
+    ptr_t<T>    get() const noexcept { return obj->queue.data(); }
+    queue_t<T>& raw() const noexcept { return obj->queue; }
 
     /*─······································································─*/
 
     bool has( const U& id ) const noexcept {
-        auto x = obj->queue.first();
 
-        while( x != nullptr ){
-          if ( x->data.first == id )
-             { return true; }
-        else { x = x->next; } }
+        auto  key = string::to_string( id );
+        ulong idx = encoder::hash::get(key);
+        auto  n   = obj->table[idx].first();
+
+        while( n!=nullptr ){
+        auto itm = obj->queue.as(n->data); if( itm==nullptr ){ break; }
+        if ( itm->data.first==id ){ return true; } n = n->next; }
 
         return false;
+
     }
 
     /*─······································································─*/
@@ -82,45 +111,35 @@ public:
 
     /*─······································································─*/
 
-    bool     empty() const noexcept { return obj->queue.empty(); }
-    ulong     size() const noexcept { return obj->queue.size(); }
-    ptr_t<T>  data() const noexcept { return obj->queue.data(); }
-    ptr_t<T>   get() const noexcept { return obj->queue.data(); }
-    queue_t<T> raw() const noexcept { return obj->queue; }
-
-    /*─······································································─*/
-
-    template< class... O >
-    void clear( const U& argc, const O&... args ) const noexcept {
-         iterator::map([&](U arg){ erase(arg); }, argc, args... );
+    array_t<U> keys() const noexcept { queue_t<U> result;
+        auto x = obj->queue.first(); while( x!=nullptr ){
+            result.push( x->data.first ); x=x->next;
+        }   return result.data();
     }
 
-    void erase() const noexcept { obj->queue.erase(); }
-
-    void clear() const noexcept { erase(); }
+    /*─······································································─*/
 
     void erase( const U& id ) const noexcept {
-        obj->queue.erase( obj->queue.index_of(
-        [&]( T arg ){ return arg.first==id; }));
+
+        auto  key = string::to_string( id );
+        ulong idx = encoder::hash::get(key);
+        auto  n   = obj->table[idx].first();
+
+        while( n!=nullptr ){
+        auto itm = obj->queue.as(n->data); if( itm==nullptr ){ return; }
+        if ( itm->data.first==id ){ obj->queue.erase(itm); break; }
+        n = n->next; } if( n==nullptr ) { return; }
+
+        obj->table[idx].erase( n );
+
     }
 
-    /*─······································································─*/
-
-    template< class... O >
-    void append( const T& argc, const O&... args ) const noexcept {
-         iterator::map([&](T arg){ append(arg); }, argc, args... );
+    void erase() const noexcept {
+        for( auto x: obj->table ){ x.erase(); }
+        obj->queue.erase();
     }
 
-    void append( const T& pair ) const noexcept {
-        auto x = obj->queue.first();
-
-        while( x != nullptr ){
-          if ( x->data.first == pair.first )
-             { x->data.second = pair.second; return; }
-        else { x = x->next; } }
-
-        obj->queue.push( pair );
-    }
+    void clear() const noexcept { erase(); }
 
 };}
 

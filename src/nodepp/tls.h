@@ -31,7 +31,7 @@ private:
 protected:
 
     struct NODE {
-        int      state= 0;
+        char     state= 0;
         agent_t  agent;
         ssl_t    ctx  ;
         NODE_CLB func ;
@@ -47,8 +47,10 @@ public:
 
     /*─······································································─*/
 
-    tls_t( NODE_CLB _func, const ssl_t& ssl, agent_t* opt=nullptr ) noexcept : obj( new NODE() )
-         { obj->func=_func; obj->agent=opt==nullptr ? agent_t() : *opt; obj->ctx = ssl; }
+    tls_t( NODE_CLB _func, ssl_t* ssl=nullptr, agent_t* opt=nullptr ) noexcept : obj( new NODE() ){ 
+        obj->agent=opt==nullptr ? agent_t() : *opt; obj->func=_func; 
+        obj->ctx  =ssl==nullptr ? ssl_t()   : *ssl; /*------------*/
+    }
 
     virtual ~tls_t() noexcept { if( obj.count() > 1 ){ return; } free(); }
 
@@ -73,38 +75,34 @@ public:
                       sk.IPPROTO = IPPROTO_TCP;
 
             if( sk.socket( dns::lookup(host), port )<0 ){
-                self->onError.emit("Error while creating TLS"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while creating TLS");
+                self->close(); sk.free(); return -1;
             }   sk.set_sockopt( self->obj->agent );
 
             if( sk.bind()<0 ){
-                self->onError.emit("Error while binding TLS"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while binding TLS");
+                self->close(); sk.free(); return -1;
             }
 
-            if( sk.listen()<0 ){ 
-                self->onError.emit("Error while listening TLS"); 
-                self->close(); sk.free(); return; 
-            }   cb( sk ); self->onOpen.emit( sk ); 
-            
+            if( sk.listen()<0 ){
+                self->onError.emit("Error while listening TLS");
+                self->close(); sk.free(); return -1;
+            }   cb( sk ); self->onOpen.emit( sk );
+
         process::add( coroutine::add( COROUTINE(){
         int c=-1; coBegin
 
-            while(!self->is_closed() && !sk.is_closed() ){
-               if((c=sk._accept())!=-2 ){ break; }
-            coNext; }
-
-            if( c<0 ){ 
+            coWait((c=sk._accept()) == -2 ); if( c<0 ){
                 self->onError.emit("Error while accepting TLS");
-            coEnd; } ssocket_t cli( self->obj->ctx, c ); 
+            coEnd; }
 
-            process::add( coroutine::add( COROUTINE(){
-            coBegin cli.set_sockopt( self->obj->agent );
-                    self->onSocket.emit(cli); self->obj->func (cli);
-                if( cli.is_available() ){ self->onConnect.emit(cli); }
-            coFinish; }));
+            ssocket_t cli( self->obj->ctx, c );
 
-        coStay(0); coFinish })); }; clb();
+            cli.set_sockopt( self->obj->agent );
+            self->onSocket.emit(cli); self->obj->func(cli);
+            if( cli.is_available() ){ self->onConnect.emit(cli); }
+
+        coStay(0); coFinish })); return -1; }; process::add( clb );
 
     }
 
@@ -123,8 +121,8 @@ public:
                       sk.IPPROTO = IPPROTO_TCP;
 
             if( sk.socket( dns::lookup(host), port )<0 ){
-                self->onError.emit("Error while creating TLS"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while creating TLS");
+                self->close(); sk.free(); return -1;
             }   sk.set_sockopt( self->obj->agent );
 
             sk.ssl = new ssl_t( self->obj->ctx, sk.get_fd() );
@@ -133,29 +131,25 @@ public:
         process::add( coroutine::add( COROUTINE(){
         int c=0; coBegin
 
-            coWait( (c=sk._connect())==-2 ); if( c<=0 ){
+            coWait((c=sk._connect()) == -2 ); if( c<=0 ){
                 self->onError.emit("Error while connecting TLS");
                 self->close(); coEnd;
             }
 
             coWait( (c=sk.ssl->_connect())==-2 ); if( c<=0 ){
                 self->onError.emit("Error while handshaking TLS");
-            coEnd; } 
-
-        process::add( coroutine::add( COROUTINE(){
-        coBegin
+            coEnd; }
 
             sk.onDrain.once([=](){ self->close(); }); cb(sk);
             self->onSocket.emit(sk); self->obj->func(sk);
 
-            if( sk.is_available() ){ 
+            if( sk.is_available() ){
                 sk.onOpen      .emit(  );
-                self->onOpen   .emit(sk); 
-                self->onConnect.emit(sk); 
+                self->onOpen   .emit(sk);
+                self->onConnect.emit(sk);
             }
 
-        coFinish }));
-        coFinish })); }; clb();
+        coFinish })); return -1; }; process::add( clb );
 
     }
 
@@ -183,11 +177,11 @@ public:
 
 namespace tls {
 
-    tls_t server( const ssl_t& ssl, agent_t* opt=nullptr ){
+    tls_t server( ssl_t* ssl=nullptr, agent_t* opt=nullptr ){
         auto skt = tls_t( [=]( ssocket_t ){}, ssl, opt ); return skt;
     }
 
-    tls_t client( const ssl_t& ssl, agent_t* opt=nullptr ){
+    tls_t client( ssl_t* ssl=nullptr, agent_t* opt=nullptr ){
         auto skt = tls_t( [=]( ssocket_t ){}, ssl, opt ); return skt;
     }
 

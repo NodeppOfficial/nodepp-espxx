@@ -11,7 +11,7 @@
 
 #ifndef NODEPP_WSS
 #define NODEPP_WSS
-#define SECRET "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+#define NODEPP_WS_SECRET "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -58,48 +58,48 @@ namespace nodepp { namespace wss {
 
         auto hrv = type::cast<https_t>(cli);
         if( !generator::ws::server( hrv ) )
-          { skt.onConnect.skip(); return; }   
+          { skt.onConnect.skip(); return; }
 
-        process::add([=](){ 
+        process::add([=](){
             skt.onConnect.resume( );
-            skt.onConnect.emit(cli); 
+            skt.onConnect.emit(cli);
             return -1;
         });
 
     }); skt.onConnect([=]( wss_t cli ){
         cli.onDrain.once([=](){ cli.free(); });
-        cli.set_timeout(0); cli.resume(); stream::pipe(cli); 
+        cli.set_timeout(0); cli.resume(); stream::pipe(cli);
     }); return skt; }
 
     /*─······································································─*/
 
-    tls_t server( const ssl_t& ssl, agent_t* opt=nullptr ){
+    tls_t server( ssl_t* ssl=nullptr, agent_t* opt=nullptr ){
     auto skt = https::server( [=]( https_t ){}, ssl, opt );
                  wss::server( skt ); return skt;
     }
 
     /*─······································································─*/
 
-    tls_t client( const string_t& uri, const ssl_t& ssl, agent_t* opt=nullptr ){
+    tls_t client( const string_t& uri, ssl_t* ssl=nullptr, agent_t* opt=nullptr ){
     tls_t skt   ( [=]( ssocket_t ){}, ssl, opt );
     skt.onSocket.once([=]( ssocket_t cli ){
 
         auto hrv = type::cast<https_t>(cli);
         if( !generator::ws::client( hrv, uri ) )
-          { skt.onConnect.skip(); return; }   
+          { skt.onConnect.skip(); return; }
 
-        process::add([=](){ 
+        process::add([=](){
             skt.onConnect.resume( );
-            skt.onConnect.emit(cli); 
+            skt.onConnect.emit(cli);
             return -1;
         });
 
     }); skt.onConnect.once([=]( wss_t cli ){
         cli.onDrain.once([=](){ cli.free(); });
-        cli.set_timeout(0); cli.resume(); stream::pipe(cli); 
+        cli.set_timeout(0); cli.resume(); stream::pipe(cli);
     }); skt.connect( url::hostname(uri), url::port(uri) ); return skt; }
 
 }}
 
-#undef SECRET
+#undef NODEPP_WS_SECRET
 #endif

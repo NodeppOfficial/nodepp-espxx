@@ -14,13 +14,13 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { struct generator_t { protected: 
-    ulong _time_ = 0; int _state_= 0; 
+namespace nodepp { struct generator_t { protected:
+    ulong _time_ = 0; int _state_= 0;
 }; }
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class coroutine_t { 
+namespace nodepp { class coroutine_t {
 private:
 
     using T = function_t<int,int&,ulong&>;
@@ -28,7 +28,7 @@ private:
 protected:
 
     struct NODE {
-        T   callback; 
+        T   callback;
         ulong time=0;
         int state =0;
         bool alive=1;
@@ -41,7 +41,7 @@ public:
     coroutine_t() : obj( new NODE() ) { obj->alive = 0; }
 
     virtual ~coroutine_t() noexcept {}
-    
+
     /*─······································································─*/
 
     void off() const noexcept { obj->alive = 0; obj->callback.free(); }
@@ -57,7 +57,7 @@ public:
     bool is_closed() const noexcept { return !is_available(); }
 
     bool is_available() const noexcept { return obj->alive; }
-    
+
     /*─······································································─*/
 
     coEmit() const noexcept { return next(); }

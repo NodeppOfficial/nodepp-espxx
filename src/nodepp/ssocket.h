@@ -28,22 +28,26 @@ public: ptr_t<ssl_t> ssl;
     /*─······································································─*/
 
     ssocket_t( ssl_t ssl, int df, ulong size=CHUNK_SIZE ) noexcept :
-    ssl( new ssl_t( ssl, df ) ), socket_t( df, size ) {}
+     socket_t( df, size ), ssl( new ssl_t( ssl, df ) ) {}
 
     ssocket_t() noexcept : socket_t(), ssl( new ssl_t() ) {}
+
+    virtual ~ssocket_t() noexcept {}
     
     /*─······································································─*/
 
     virtual int __read( char* bf, const ulong& sx ) const noexcept override {
         if ( process::millis() > get_recv_timeout() || is_closed() )
-           { close(); return -1; } if ( sx==0 ) { return 0; }
+           { return -1; } if ( sx==0 ) { return  0; }
+        if ( ssl.null() ) /*--------*/ { return -1; }
         obj->feof = ssl->_read( bf, sx ); return obj->feof;
     }
 
     virtual int __write( char* bf, const ulong& sx ) const noexcept override {
         if ( process::millis() > get_send_timeout() || is_closed() )
-           { close(); return -1; } if ( sx==0 ) { return 0; } 
-        obj->feof = ssl->_write( bf, sx ); return obj->feof;
+           { return -1; } if ( sx==0 ) { return  0; } 
+        if ( ssl.null() ) /*--------*/ { return -1; }
+        obj->feof = ssl->_write( bf,sx ); return obj->feof;
     }
     
 };}

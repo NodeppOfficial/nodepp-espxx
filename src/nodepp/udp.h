@@ -31,7 +31,7 @@ private:
 protected:
 
     struct NODE {
-        int      state = 0;
+        char     state = 0;
         agent_t  agent ;
         NODE_CLB func  ;
     };  ptr_t<NODE> obj;
@@ -69,28 +69,28 @@ public: udp_t() noexcept : obj( new NODE() ) {}
                      sk.IPPROTO = IPPROTO_UDP;
 
             if( sk.socket( dns::lookup(host), port )<0 ){
-                self->onError.emit("Error while creating TLS"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while creating TLS");
+                self->close(); sk.free(); return -1;
             }   sk.set_sockopt( self->obj->agent );
 
-            if( sk.bind()<0 ){ 
-                self->onError.emit("Error while binding TLS"); 
-                self->close(); sk.free(); return; 
-            }
-
         process::add( coroutine::add( COROUTINE(){
-        coBegin
+        int c=0; coBegin
+
+            coWait( (c=sk._bind())==-2 ); if( c<0 ){
+                self->onError.emit("Error while binding TLS");
+                self->close(); sk.free(); coEnd;
+            }
 
             sk.onDrain.once([=](){ self->close(); }); cb(sk);
             self->onSocket.emit(sk); self->obj->func(sk);
-                
-            if( sk.is_available() ){ 
+
+            if( sk.is_available() ){
                 sk.onOpen      .emit(  );
-                self->onOpen   .emit(sk); 
-                self->onConnect.emit(sk); 
+                self->onOpen   .emit(sk);
+                self->onConnect.emit(sk);
             }
 
-        coFinish })); }; clb();
+        coFinish })); return -1; }; process::add( clb );
 
     }
 
@@ -107,8 +107,8 @@ public: udp_t() noexcept : obj( new NODE() ) {}
                      sk.IPPROTO = IPPROTO_UDP;
 
             if( sk.socket( dns::lookup(host), port )<0 ){
-                self->onError.emit("Error while creating TLS"); 
-                self->close(); sk.free(); return; 
+                self->onError.emit("Error while creating TLS");
+                self->close(); sk.free(); return -1;
             }   sk.set_sockopt( self->obj->agent );
 
         process::add( coroutine::add( COROUTINE(){
@@ -117,13 +117,13 @@ public: udp_t() noexcept : obj( new NODE() ) {}
             sk.onDrain.once([=](){ self->close(); }); cb(sk);
             self->onSocket.emit(sk); self->obj->func(sk);
 
-            if( sk.is_available() ){ 
+            if( sk.is_available() ){
                 sk.onOpen      .emit(  );
-                self->onOpen   .emit(sk); 
-                self->onConnect.emit(sk); 
+                self->onOpen   .emit(sk);
+                self->onConnect.emit(sk);
             }
 
-        coFinish })); }; clb();
+        coFinish })); return -1; }; process::add( clb );
 
     }
 

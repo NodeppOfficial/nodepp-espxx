@@ -57,7 +57,7 @@ protected:
     }
 
 
-    static int CALLBACK ( char *buf, int size, int rwflag, void *args ) {
+    static int SNI_CLB ( char *buf, int size, int rwflag, void *args ) {
         if( args == nullptr || rwflag != 1 ){ return -1; }
         strncpy( buf, (char*)args, size );
                 buf[ size - 1 ] = '\0';
@@ -89,7 +89,7 @@ protected:
         onSNI func = *((onSNI*)arg); if( servername ){ ssl_t* xtc = func(servername); 
             if( xtc != nullptr ){ xtc->create_server();
                 SSL_CTX* v = SSL_set_SSL_CTX( ssl, xtc->get_ctx() );
-                if( v != xtc->get_ctx() ) return SSL_TLSEXT_ERR_NOACK;
+                if( v != xtc->get_ctx() ){ return SSL_TLSEXT_ERR_NOACK; }
             }
         }   return SSL_TLSEXT_ERR_OK;
     }
@@ -126,13 +126,13 @@ protected:
 
 public:
     
-   ~ssl_t() { if( obj.count() > 1 ) { return; } free(); }
+    virtual ~ssl_t() { if( obj.count() > 1 ) { return; } free(); }
     
     /*─······································································─*/
 
     ssl_t( const string_t& _key, const string_t& _cert, const string_t& _chain ) : obj( new NODE() ) {
         if(!fs::exists_file(_key) || !fs::exists_file(_cert) || !fs::exists_file(_chain) )
-          { ARDUINO_ERROR("such key, cert or chain does not exist"); } 
+          { throw except_t("such key, cert or chain does not exist"); } 
             obj->key = _key;  obj->crt = _cert; obj->cha = _chain;
     }
     
@@ -140,28 +140,31 @@ public:
 
     ssl_t( const string_t& _key, const string_t& _cert ) : obj( new NODE() ) { 
         if(!fs::exists_file(_key) || !fs::exists_file(_cert) )
-          { ARDUINO_ERROR("such key or cert does not exist"); }
+          { throw except_t("such key or cert does not exist"); }
             obj->key = _key;  obj->crt = _cert; 
     }
 
     /*─······································································─*/
 
-    ssl_t() : obj( new NODE() ) {  
-        obj->cert = new X509_t(); obj->cert->generate( "Node", "Node", "Node" );
-    }
-
-    /*─······································································─*/
-
     ssl_t( ssl_t xtc, int df ) : obj( new NODE() ) { 
-       if( xtc.get_ctx() == nullptr ){ ARDUINO_ERROR("ctx has no context"); }
+       if( xtc.get_ctx() == nullptr ){ throw except_t("ctx has no context"); }
            obj->ctx = xtc.get_ctx(); obj->ssl = SSL_new(obj->ctx); 
            obj->srv = xtc.is_server(); set_nonbloking_mode(); 
            set_fd( df );
     }
+
+    /*─······································································─*/
+
+    ssl_t() : obj( new NODE() ) {  
+        static ptr_t<X509_t> cert; if( cert.null() ){
+            cert = type::bind /*-*/ ( new X509_t() ); 
+            cert->generate( "Node", "Node", "Node" );
+        }   /*-------------------*/ obj->cert = cert;
+    }
     
     /*─······································································─*/
 
-    void set_SNI_callback( onSNI callback ){ obj->fnc = type::bind( callback ); }
+    void set_sni_callback( onSNI callback ){ obj->fnc = type::bind( callback ); }
     
     /*─······································································─*/
 
@@ -200,7 +203,7 @@ public:
 
     void set_password( const char* pass ) const noexcept {
         if( !obj->stt ){ return; }
-        SSL_CTX_set_default_passwd_cb( obj->ctx, &CALLBACK );
+        SSL_CTX_set_default_passwd_cb( obj->ctx, &SNI_CLB );
         SSL_CTX_set_default_passwd_cb_userdata( obj->ctx, (void*)pass );
     }
 
@@ -217,7 +220,7 @@ public:
     
     /*─······································································─*/
 
-    int _accept() const noexcept { if( !obj->stt ){ return -1; }
+    inline int _accept() const noexcept { if( !obj->stt ){ return -1; }
         if( obj->ssl == nullptr ){ return -1; }
         int c = SSL_accept( obj->ssl );
         if( c > 0 ){ obj->cnn = 1; }
@@ -226,7 +229,7 @@ public:
     
     /*─······································································─*/
 
-    int _connect() const noexcept { if( !obj->stt ){ return -1; }
+    inline int _connect() const noexcept { if( !obj->stt ){ return -1; }
         if( obj->ssl == nullptr ){ return -1; } 
         int c = SSL_connect( obj->ssl );
         if( c > 0 ){ obj->cnn = 1; }
@@ -257,7 +260,7 @@ public:
     
     /*─······································································─*/
 
-    virtual int _read( char* bf, ulong sx )  const noexcept { return __read( bf, sx ); }
+    virtual int _read ( char* bf, ulong sx ) const noexcept { return __read ( bf, sx ); }
     
     virtual int _write( char* bf, ulong sx ) const noexcept { return __write( bf, sx ); }
     
@@ -265,13 +268,13 @@ public:
 
     virtual int __read( char* bf, ulong sx ) const noexcept { 
         if( !obj->stt || obj->ssl == nullptr ){ return -1; } int c = 0;
-        if( obj->cnn == 0 ){while( _accept()==-2 ){ return -2; }}
+        if( obj->cnn == 0 ){ while( _accept()==-2 ){ return -2; } }
         return is_blocked( c=SSL_read( obj->ssl, bf, sx ) ) ? -2 : c;
     }
     
-    int __write( char* bf, ulong sx ) const noexcept {
+    virtual int __write( char* bf, ulong sx ) const noexcept {
         if( !obj->stt || obj->ssl == nullptr ){ return -1; } int c = 0;
-        if( obj->cnn == 0 ){while( _accept()==-2 ){ return -2; }}
+        if( obj->cnn == 0 ){ while( _accept()==-2 ){ return -2; } }
         return is_blocked( c=SSL_write( obj->ssl, bf, sx ) ) ? -2 : c;
     }
 
@@ -280,7 +283,7 @@ public:
     bool _write_( char* bf, const ulong& sx, ulong& sy ) const noexcept {
         if( !obj->stt || obj->ssl == nullptr ){ return -1; } while( sy < sx ) {
             int c = __write( bf+sy, sx-sy );
-            if( c <= 0 && c != -2 )          { return 0; }
+            if( c <= 0 && c != -2 ) /*----*/ { return 0; }
             if( c >  0 ){ sy += c; continue; } return 1;
         }   return 0;
     }
@@ -288,7 +291,7 @@ public:
     bool _read_( char* bf, const ulong& sx, ulong& sy ) const noexcept {
         if( !obj->stt || obj->ssl == nullptr ){ return -1; } while( sy < sx ) {
             int c = __read( bf+sy, sx-sy );
-            if( c <= 0 && c != -2 )          { return 0; }
+            if( c <= 0 && c != -2 ) /*----*/ { return 0; }
             if( c >  0 ){ sy += c; continue; } return 1;
         }   return 0;
     }
@@ -306,7 +309,7 @@ public:
         }   CLSE:; obj->stt = false;
     }
     
-};}
+} SSL_DEFAULT_CERT; }
 
 /*────────────────────────────────────────────────────────────────────────────*/
 

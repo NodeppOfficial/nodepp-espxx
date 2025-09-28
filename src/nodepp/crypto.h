@@ -74,7 +74,7 @@ public:
         obj->ctx   = EVP_MD_CTX_new();
         obj->state = 1;
         if ( !obj->ctx || !EVP_DigestInit_ex( obj->ctx, type, NULL ) )
-           { ARDUINO_ERROR("can't initializate hash_t"); }
+           { throw except_t("can't initializate hash_t"); }
     }
 
     virtual ~hash_t() noexcept { if( obj.count()>1 ){ return; } free(); }
@@ -132,7 +132,7 @@ public:
         obj->ctx   = HMAC_CTX_new(); 
         obj->state = 1;
         if ( !obj->ctx || !HMAC_Init_ex( obj->ctx, key.data(), key.size(), type, nullptr ) )
-           { ARDUINO_ERROR("can't initializate hmac_t"); }
+           { throw except_t("can't initializate hmac_t"); }
     }
     
     virtual ~hmac_t() noexcept { if( obj.count()>1 ){ return; } free(); }
@@ -250,7 +250,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1; 
         if ( !obj->ctx || !EVP_CipherInit_ex( obj->ctx, type, nullptr, (uchar*)key.data(), iv, mode ) )
-           { ARDUINO_ERROR("can't initializate cipher_t"); }
+           { throw except_t("can't initializate cipher_t"); }
     }
 
     template< class T >
@@ -259,7 +259,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1; 
         if ( !obj->ctx || !EVP_CipherInit_ex( obj->ctx, type, nullptr, (uchar*)key.data(), (uchar*)iv.data(), mode ) )
-           { ARDUINO_ERROR("can't initializate cipher_t"); }
+           { throw except_t("can't initializate cipher_t"); }
     }
 
     template< class T >
@@ -267,7 +267,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1; 
         if ( !obj->ctx || !EVP_CipherInit_ex( obj->ctx, type, nullptr, (uchar*)"\0", (uchar*)"\0", mode ) )
-           { ARDUINO_ERROR("can't initializate cipher_t"); }
+           { throw except_t("can't initializate cipher_t"); }
     }
     
     virtual ~cipher_t() noexcept { if( obj.count()>1 ){ return; } free(); }
@@ -328,7 +328,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1;
         if ( !obj->ctx || !EVP_EncryptInit_ex( obj->ctx, type, NULL, (uchar*)key.data(), iv ) )
-           { ARDUINO_ERROR("can't initializate encrypt_t"); }
+           { throw except_t("can't initializate encrypt_t"); }
     }
 
     template< class T >
@@ -337,7 +337,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1;
         if ( !obj->ctx || !EVP_EncryptInit_ex( obj->ctx, type, NULL, (uchar*)key.data(), (uchar*)iv.data() ) )
-           { ARDUINO_ERROR("can't initializate encrypt_t"); }
+           { throw except_t("can't initializate encrypt_t"); }
     }
 
     void update( string_t msg ) const noexcept { if( obj->state != 1 ){ return; }
@@ -398,7 +398,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1;
         if ( !obj->ctx || !EVP_DecryptInit_ex( obj->ctx, type, NULL, (uchar*)key.data(), iv ) )
-           { ARDUINO_ERROR("can't initializate decrypt_t"); }
+           { throw except_t("can't initializate decrypt_t"); }
     }
 
     template< class T >
@@ -407,7 +407,7 @@ public:
         obj->bff = ptr_t<uchar>(CHUNK_SIZE,'\0');
         obj->ctx = EVP_CIPHER_CTX_new(); obj->state = 1;
         if ( !obj->ctx || !EVP_DecryptInit_ex( obj->ctx, type, NULL, (uchar*)key.data(), (uchar*)iv.data() ) )
-           { ARDUINO_ERROR("can't initializate decrypt_t"); }
+           { throw except_t("can't initializate decrypt_t"); }
     }
 
     void update( string_t msg ) const noexcept { if( obj->state != 1 ){ return; }
@@ -543,7 +543,7 @@ public:
         obj->state = 1; obj->chr = chr; 
         obj->bn = (BIGNUM*) BN_new();
         if ( !obj->bn )
-           { ARDUINO_ERROR("can't initializate encoder"); }
+           { throw except_t("can't initializate encoder"); }
     }
     
     virtual ~encoder_t() noexcept { if( obj.count()>1 ){ return; } free(); }
@@ -679,7 +679,7 @@ public:
     decoder_t( const string_t& chr ) : obj( new NODE() ) { 
         obj->state = 1; obj->chr = chr; obj->bn = (BIGNUM*) BN_new();
         if ( !obj->bn )
-           { ARDUINO_ERROR("can't initializate decoder"); }
+           { throw except_t("can't initializate decoder"); }
     }
     
     virtual ~decoder_t() noexcept { if( obj.count()>1 ){ return; } free(); }
@@ -689,7 +689,7 @@ public:
 
         for( const auto& c : msg ) {
              const char* pos = strchr( obj->chr.data(), c );
-             if( pos == nullptr ) ARDUINO_ERROR("Invalid BaseX character");
+             if( pos == nullptr ) throw except_t("Invalid BaseX character");
              BN_mul_word( obj->bn, obj->chr.size() );
              BN_add_word( obj->bn, pos - obj->chr.data() );
         }
@@ -739,17 +739,17 @@ protected:
 
 public:
 
-    X509_t( uint rsa_size=2048 ) : obj( new NODE() ) { 
-
-        obj->ctx = X509_new(); obj->name = X509_NAME_new();  
-        obj->rsa = RSA_new(); obj->num = BN_new();
+    X509_t( uint rsa_size=2048 ) : obj( new NODE() ) {
+        
+        obj->ctx = X509_new(); obj->name= X509_NAME_new();  
+        obj->rsa = RSA_new();  obj->num = BN_new();
         obj->pkey= EVP_PKEY_new();
         
         BN_set_word( obj->num, RSA_F4 );
         RSA_generate_key_ex( obj->rsa, rsa_size, obj->num, NULL ); 
 
         obj->state = 1; if( !obj->ctx || !obj->rsa ) 
-        { ARDUINO_ERROR("can't initializate X509_t"); }
+        { throw except_t("can't initializate X509_t"); }
 
     }
 
@@ -778,7 +778,7 @@ public:
         EVP_PKEY_assign_RSA( obj->pkey, obj->rsa ); X509_set_pubkey( obj->ctx, obj->pkey );
 
         if( !X509_sign( obj->ctx, obj->pkey, EVP_sha256() ) )
-          { ARDUINO_ERROR("can't generate X509 certificates"); }
+          { throw except_t("can't generate X509 certificates"); }
 
     }
 
@@ -846,7 +846,7 @@ public:
         obj->num   =  BN_new();
         obj->state = 1;
         if ( !obj->num || !obj->rsa )
-           { ARDUINO_ERROR("creating rsa object"); }
+           { throw except_t("creating rsa object"); }
     }
 
     virtual ~rsa_t() noexcept { if( obj.count() > 1 ){ return; } free(); }
@@ -862,14 +862,14 @@ public:
     void read_private_key_from_memory( const string_t& key, const char* pass=NULL ) const {
         BIO* bo = BIO_new( BIO_s_mem() ); BIO_write( bo, key.get(), key.size() );
         if( !PEM_read_bio_RSAPrivateKey( bo, &obj->rsa, &PASS_CLB, (void*)pass ) ){
-            BIO_free(bo); ARDUINO_ERROR( "Invalid RSA Key" );
+            BIO_free(bo); throw except_t( "Invalid RSA Key" );
         }   BIO_free(bo); obj->bff.resize(RSA_size(obj->rsa));
     }
 
     void read_public_key_from_memory( const string_t& key, const char* pass=NULL ) const {
         BIO* bo = BIO_new( BIO_s_mem() ); BIO_write( bo, key.get(), key.size() );
         if( !PEM_read_bio_RSAPublicKey( bo, &obj->rsa, &PASS_CLB, (void*)pass ) ){
-            BIO_free(bo); ARDUINO_ERROR( "Invalid RSA Key" );
+            BIO_free(bo); throw except_t( "Invalid RSA Key" );
         }   BIO_free(bo); obj->bff.resize(RSA_size(obj->rsa));
     }
 
@@ -891,31 +891,31 @@ public:
 
     int write_private_key( const string_t& path, const char* pass=NULL ) const {
         FILE* fp = fopen( path.data() , "w"); int res = 0;
-        if ( fp == nullptr ){ ARDUINO_ERROR("while writing private key"); }
+        if ( fp == nullptr ){ throw except_t("while writing private key"); }
         res = PEM_write_RSAPrivateKey( fp, obj->rsa, NULL, NULL, 0, &PASS_CLB, (void*)pass );
         fclose( fp ); return res;
     }
 
     int write_public_key( const string_t& path ) const {
         FILE* fp = fopen( path.data() , "w"); int res = 0;
-        if ( fp == nullptr ){ ARDUINO_ERROR("while writing public key"); }
+        if ( fp == nullptr ){ throw except_t("while writing public key"); }
         res = PEM_write_RSAPublicKey( fp, obj->rsa );
         fclose( fp ); return res;
     }
 
     void read_public_key( const string_t& path, const char* pass=NULL ) const {
         FILE* fp = fopen( path.data(), "r" );
-        if( fp == nullptr ){ ARDUINO_ERROR("while reading public key"); }
+        if( fp == nullptr ){ throw except_t("while reading public key"); }
         if( !PEM_read_RSAPublicKey( fp, &obj->rsa, &PASS_CLB, (void*)pass ) ){
-            fclose( fp ); ARDUINO_ERROR( "Invalid RSA Key" );
+            fclose( fp ); throw except_t( "Invalid RSA Key" );
         }   fclose( fp ); obj->bff.resize(RSA_size(obj->rsa));
     }
 
     void read_private_key( const string_t& path, const char* pass=NULL ) const {
         FILE* fp = fopen( path.data(), "r" );
-        if( fp == nullptr ){ ARDUINO_ERROR("while reading private key"); }
+        if( fp == nullptr ){ throw except_t("while reading private key"); }
         if( !PEM_read_RSAPrivateKey( fp, &obj->rsa, &PASS_CLB, (void*)pass ) ){
-            fclose( fp ); ARDUINO_ERROR( "Invalid RSA Key" );
+            fclose( fp ); throw except_t( "Invalid RSA Key" );
         }   fclose( fp ); obj->bff.resize(RSA_size(obj->rsa));
     }
 
@@ -1060,7 +1060,7 @@ public:
         obj->k     = BN_new();
         obj->state = 1;
         if( !obj->dh || !obj->k )
-          { ARDUINO_ERROR( "creating new dh" ); }
+          { throw except_t( "creating new dh" ); }
     }
 
     virtual ~dh_t() noexcept { if( obj.count() > 1 ){ return; } free(); }
@@ -1107,7 +1107,7 @@ public:
         if( obj->state != 1 ){ return nullptr; } 
         ptr_t<uchar> shared( DH_size( obj->dh ) );
         if( !BN_hex2bn( &obj->k,hex.data() ) )
-          { ARDUINO_ERROR( "invalid key" ); }
+          { throw except_t( "invalid key" ); }
         int len = DH_compute_key( &shared, obj->k, obj->dh );
         return encoder::buffer::buff2hex( string_t( (char*) &shared, (ulong) len ) );
     }
@@ -1160,13 +1160,13 @@ public:
     void read_private_key_from_memory( const string_t& key, const char* pass=NULL ) const {
         BIO* bo = BIO_new( BIO_s_mem() ); BIO_write( bo, key.get(), key.size() );
         if( !PEM_read_bio_DSAPrivateKey( bo, &obj->dsa, &PASS_CLB, (void*)pass ) )
-          { BIO_free(bo); ARDUINO_ERROR( "Invalid DSA Key" ); } BIO_free(bo);
+          { BIO_free(bo); throw except_t( "Invalid DSA Key" ); } BIO_free(bo);
     }
 
     void read_public_key_from_memory( const string_t& key, const char* pass=NULL ) const {
         BIO* bo = BIO_new( BIO_s_mem() ); BIO_write( bo, key.get(), key.size() );
         if( !PEM_read_bio_DSA_PUBKEY( bo, &obj->dsa, &PASS_CLB, (void*)pass ) )
-          { BIO_free(bo); ARDUINO_ERROR( "Invalid DSA Key" ); } BIO_free(bo);
+          { BIO_free(bo); throw except_t( "Invalid DSA Key" ); } BIO_free(bo);
     }
 
     string_t write_private_key_to_memory( const char* pass=NULL ) const {
@@ -1187,32 +1187,32 @@ public:
 
     void read_private_key( const string_t& path, const char* pass=NULL ) const {
         FILE* fp = fopen(path.data(),"r");
-        if ( fp == nullptr ){ ARDUINO_ERROR(" while reading private key"); }
+        if ( fp == nullptr ){ throw except_t(" while reading private key"); }
         obj->dsa = PEM_read_DSAPrivateKey( fp, &obj->dsa, &PASS_CLB, (void*)pass );
         if ( obj->dsa == nullptr )
-           { fclose(fp); ARDUINO_ERROR( "Invalid DSA Key" ); } fclose(fp); 
+           { fclose(fp); throw except_t( "Invalid DSA Key" ); } fclose(fp); 
     }
 
     void read_public_key( const string_t& path, const char* pass=NULL ) const {
         FILE* fp = fopen(path.data(),"r");
-        if ( fp == nullptr ){ ARDUINO_ERROR(" while reading public key"); }
+        if ( fp == nullptr ){ throw except_t(" while reading public key"); }
         obj->dsa = PEM_read_DSA_PUBKEY( fp, &obj->dsa, &PASS_CLB, (void*)pass );
         if ( obj->dsa == nullptr )
-           { fclose(fp); ARDUINO_ERROR( "Invalid DSA Key" ); } fclose(fp);  
+           { fclose(fp); throw except_t( "Invalid DSA Key" ); } fclose(fp);  
     }
 
     void write_private_key( const string_t& path ) const {
         if( obj->state != 1 ){ return; } FILE* fp = fopen( path.data(), "w" );
-        if ( fp == nullptr ) { ARDUINO_ERROR("while creating file"); }
+        if ( fp == nullptr ) { throw except_t("while creating file"); }
         if (!PEM_write_DSA_PUBKEY( fp, obj->dsa ) ) 
-           { fclose( fp ); ARDUINO_ERROR("while writting the private key"); } fclose( fp );
+           { fclose( fp ); throw except_t("while writting the private key"); } fclose( fp );
     }
 
     void write_public_key( const string_t& path, const char* pass=NULL ) const {
         if( obj->state != 1 ){ return; } FILE* fp = fopen( path.data(), "w" );
-        if ( fp == nullptr ) { ARDUINO_ERROR("while creating file"); }
+        if ( fp == nullptr ) { throw except_t("while creating file"); }
         if (!PEM_write_DSAPrivateKey( fp, obj->dsa, nullptr, nullptr, 0, &PASS_CLB, (void*)pass ) )
-           { fclose( fp ); ARDUINO_ERROR("while writting the public key"); } fclose( fp );
+           { fclose( fp ); throw except_t("while writting the public key"); } fclose( fp );
     }
 
     void free() const noexcept { 

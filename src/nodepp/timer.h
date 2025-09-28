@@ -19,50 +19,50 @@
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { namespace timer {
-    
+
     template< class V, class... T >
     void* add ( V func, ulong* time, const T&... args ){
         auto prs = generator::timer::timer();
-        return process::add( prs, func, time, args... ); 
-    };
-    
+        return process::add( prs, func, time, args... );
+    }
+
     template< class V, class... T >
     void* add ( V func, ulong time, const T&... args ){
         auto prs = generator::timer::timer();
-        return process::add( prs, func, time, args... ); 
-    };
-    
+        return process::add( prs, func, time, args... );
+    }
+
     /*─······································································─*/
 
     template< class V, class... T >
     void* timeout ( V func, ulong* time, const T&... args ){
         return timer::add([=]( T... args ){ func(args...); return -1; }, time, args... );
-    };
+    }
 
     template< class V, class... T >
     void* timeout ( V func, ulong time, const T&... args ){
         return timer::add([=]( T... args ){ func(args...); return -1; }, time, args... );
-    };
-    
+    }
+
     /*─······································································─*/
 
     template< class V, class... T >
     void* interval ( V func, ulong* time, const T&... args ){
         return timer::add([=]( T... args ){ func(args...); return 1; }, time, args... );
-    };
+    }
 
     template< class V, class... T >
     void* interval( V func, ulong time, const T&... args ){
         return timer::add([=]( T... args ){ func(args...); return 1; }, time, args... );
-    };
-    
+    }
+
     /*─······································································─*/
-    
+
     void await( ulong* time ){ process::await( coroutine::add( COROUTINE(){
     coBegin ; coDelay( *time ) ; coFinish }) ); }
 
     void await( ulong time ){ await( type::cast<ulong>( &time ) ); }
-    
+
     /*─······································································─*/
 
     void clear( void* address ){ process::clear( address ); }
@@ -72,50 +72,50 @@ namespace nodepp { namespace timer {
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { namespace utimer {
-    
+
     template< class V, class... T >
     void* add ( V func, ulong* time, const T&... args ){
         auto prs = generator::timer::utimer();
-        return process::add( prs, func, time, args... ); 
-    };
-    
+        return process::add( prs, func, time, args... );
+    }
+
     template< class V, class... T >
     void* add ( V func, ulong time, const T&... args ){
         auto prs = generator::timer::utimer();
-        return process::add( prs, func, time, args... ); 
-    };
-    
+        return process::add( prs, func, time, args... );
+    }
+
     /*─······································································─*/
 
     template< class V, class... T >
     void* timeout ( V func, ulong* time, const T&... args ){
         return utimer::add([=]( T... args ){ func(args...); return -1; }, time, args... );
-    };
+    }
 
     template< class V, class... T >
     void* timeout ( V func, ulong time, const T&... args ){
         return utimer::add([=]( T... args ){ func(args...); return -1; }, time, args... );
-    };
-    
+    }
+
     /*─······································································─*/
 
     template< class V, class... T >
     void* interval ( V func, ulong* time, const T&... args ){
         return utimer::add([=]( T... args ){ func(args...); return 1; }, time, args... );
-    };
+    }
 
     template< class V, class... T >
     void* interval( V func, ulong time, const T&... args ){
         return utimer::add([=]( T... args ){ func(args...); return 1; }, time, args... );
-    };
-    
+    }
+
     /*─······································································─*/
-    
+
     void await( ulong* time ){ process::await( coroutine::add( COROUTINE(){
     coBegin ; coUDelay( *time ) ; coFinish }) ); }
 
     void await( ulong time ){ await( type::cast<ulong>( &time ) ); }
-    
+
     /*─······································································─*/
 
     void clear( void* address ){ process::clear( address ); }

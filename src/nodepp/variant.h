@@ -21,7 +21,7 @@
 namespace nodepp { template< class... Types > class variant_t : public any_t {
 public:
 
-    template< class T > 
+    template< class T >
     variant_t( const T& V ) : any_t(V), idx( new int( is_valid(V) ) ) {}
 
     variant_t( const char* V ) : any_t( string::to_string(V) ),
@@ -29,11 +29,11 @@ public:
 
     variant_t() : any_t(), idx( new int(-1) ) {}
 
-    virtual ~variant_t() noexcept {} 
-    
+    virtual ~variant_t() noexcept {}
+
     /*─······································································─*/
 
-    template< class T > 
+    template< class T >
     void set( const T& f ) { idx = is_valid( f ); any_t::set( f ); }
 
     template< class T >
@@ -41,33 +41,33 @@ public:
 
     template< class T >
     T as() const noexcept { return any_t::as<T>(); }
-    
+
 protected:
 
     template< class T >
-    int is_valid( T /*unused*/ ) { 
+    int is_valid( T /*unused*/ ) {
         int idx = get_index<T,Types...>::value;
         if( idx > (int) sizeof...(Types) ){
-            ARDUINO_ERROR("invalid data type");
+            throw except_t("invalid data type");
         }   return idx;
     }
-    
+
     /*─······································································─*/
-    
-    template< class T, class... Us > struct get_index { 
+
+    template< class T, class... Us > struct get_index {
         static constexpr int value = 1;
     };
 
-    template< class T, class... Us > struct get_index<T, T, Us...> { 
+    template< class T, class... Us > struct get_index<T, T, Us...> {
         static constexpr int value = 0;
     };
 
     template< class T, class U, class... Us > struct get_index<T, U, Us...> {
         static constexpr int value = 1 + get_index<T,Us...>::value;
     };
-    
+
     /*─······································································─*/
-    
+
     ptr_t<int> idx;
 
 };}

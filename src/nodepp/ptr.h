@@ -25,7 +25,7 @@ private:
 
         if( address->length!= 0 ){ delete [] address->value; }
         if( address->length== 0 ){ delete    address->value; }
-
+        
             address->count = 0; /*-*/
             address->value = nullptr;
     return 1; }
@@ -35,7 +35,7 @@ private:
         if( address->count ==0 ){ return -1; }
           --address->count;
 
-        if( address->count == 0 )
+        if( address->count ==0 )
           { _free_(address); delete address; }
 
         address = nullptr;
@@ -50,7 +50,7 @@ private:
           { address = nullptr; return -1; }
         if( _new_( address, value, size )==-1 )
           { address = nullptr; return -1; }
-
+        
     return 1; }
 
     inline int _new_( NODE*& address, T* value, ulong size ) noexcept {
@@ -81,11 +81,11 @@ private:
 
     inline bool _null_( NODE* address ) const noexcept {
         if( address /*-*/ ==nullptr ){ return true; }
-        if( address->value==nullptr ){ return true; }
+        if( address->value==nullptr ){ return true; }    
     return false; }
 
 private:
-
+    
     NODE* address = nullptr;
 
 protected:
@@ -149,8 +149,8 @@ public:
     /*─······································································─*/
 
     T& operator[]( ulong i ) const noexcept {
-       return size() !=0 ? data()[i%size()]
-       /*-------------*/ : data()[i];
+       return size() !=0 ? data()[i%size()] 
+       /*-------------*/ : data()[i]; 
     }
 
     /*─······································································─*/
@@ -164,7 +164,7 @@ public:
     ptr_t copy() const noexcept {
         if  ( count() > 0 && size()==0 )
             { return new T( *data() ); }
-        elif( count() > 0 && size()> 0 ){
+        elif( count() > 0 && size()> 0 ){ 
             auto n_buffer=ptr_t<T>( size() );
             type::copy( begin(), end(), n_buffer.begin() );
         return n_buffer; } return nullptr;
@@ -183,7 +183,7 @@ public:
 
     void resize( ulong n ) noexcept { reset();
         if( n == 0 )
-        /**/ { _set_( address, new T() , 0 ); }
+        /**/ { _set_( address, new T() , 0 ); } 
         else { _set_( address, new T[n], n ); }
     }
 
@@ -206,16 +206,17 @@ public:
 
     ulong     size() const noexcept { return null() ? 0 /*-*/ : address->length; }
     ulong    count() const noexcept { return null() ? 0 /*-*/ : address->count;  }
+
     T*        data() const noexcept { return null() ? nullptr : address->value;  }
     T*         get() const noexcept { return null() ? nullptr : address->value;  }
-
+    
     T*         end() const noexcept { return null() ? nullptr : data() + size(); }
     T*       begin() const noexcept { return null() ? nullptr : data() ; }
     void      free() const noexcept { _free_( address ); }
 
-    bool     empty() const noexcept { return  null() ||  size()== 0; }
-    bool has_value() const noexcept { return !null() && count()!= 0; }
-    bool      null() const noexcept { return _null_(address); }
+    bool     empty() const noexcept { return  null() ||  size() == 0; }
+    bool has_value() const noexcept { return !null() && count() != 0; }
+    bool      null() const noexcept { return _null_( address ); }
 
     /*─······································································─*/
 

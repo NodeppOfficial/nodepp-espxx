@@ -9,66 +9,62 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_VARIANT
-#define NODEPP_VARIANT
+#ifndef NODEPP_SEMAPHORE
+#define NODEPP_SEMAPHORE
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#include "any.h"
+#include "mutex.h"
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { template< class... Types > class variant_t : public any_t {
+namespace nodepp { class semaphore_t {
+protected:
+
+    struct NODE {
+        uchar /*--*/ ctx=0;
+        mutex_t /**/ mtx  ;
+    };  ptr_t<NODE>  obj  ;
+
 public:
 
-    template< class T >
-    variant_t( const T& V ) : any_t(V), idx( new int( is_valid(V) ) ) {}
-
-    variant_t( const char* V ) : any_t( string::to_string(V) ),
-    idx( new int( is_valid( string::to_string(V) ) ) ) {}
-
-    variant_t() : any_t(), idx( new int(-1) ) {}
-
-    virtual ~variant_t() noexcept {}
+    semaphore_t() :obj( new NODE() ){}
+    virtual ~semaphore_t() noexcept {}
 
     /*─······································································─*/
 
-    template< class T >
-    void set( const T& f ) { idx = is_valid( f ); any_t::set( f ); }
+    void wait( uchar count ) const noexcept { goto check;
 
-    template< class T >
-    T get() const noexcept { return any_t::get<T>(); }
+        loop : worker::yield();
+        check: obj->mtx.lock();
 
-    template< class T >
-    T as() const noexcept { return any_t::as<T>(); }
+          if( obj->ctx >= obj.count() ){ obj->ctx =0; }
+          if( obj.count()>0 ){ obj->ctx%=obj.count(); }
+          if( obj->ctx != count % obj.count() )
+            { obj->mtx.unlock(); goto loop; }
 
-protected:
+        obj->mtx.unlock();
 
-    template< class T >
-    int is_valid( T /*unused*/ ) {
-        int idx = get_index<T,Types...>::value;
-        if( idx > (int) sizeof...(Types) ){
-            throw except_t("invalid data type");
-        }   return idx;
     }
 
     /*─······································································─*/
 
-    template< class T, class... Us > struct get_index {
-        static constexpr int value = 1;
-    };
+    void wait() const noexcept { goto check;
 
-    template< class T, class... Us > struct get_index<T, T, Us...> {
-        static constexpr int value = 0;
-    };
+        loop : worker::yield();
+        check: obj->mtx.lock();
 
-    template< class T, class U, class... Us > struct get_index<T, U, Us...> {
-        static constexpr int value = 1 + get_index<T,Us...>::value;
-    };
+          if( obj->ctx % 2 != 0 )
+            { obj->mtx.unlock(); goto loop; }
 
-    /*─······································································─*/
+        obj->mtx.unlock();
 
-    ptr_t<int> idx;
+    }
+
+    void release() const noexcept {
+        obj->mtx.lock  (); ++obj->ctx;
+        obj->mtx.unlock();
+    }
 
 };}
 

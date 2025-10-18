@@ -9,19 +9,23 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#pragma once
-#include <sys/file.h>
-#include <unistd.h>
-#include <fcntl.h>
+#ifndef NODEPP_SERIAL
+#define NODEPP_SERIAL
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class file_t {
+#include "file.h"
+#include "event.h"
+#include "generator.h"
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { class serial_t {
 protected:
 
-    virtual void kill() const noexcept {
-    if( !is_std() ){ ::close(obj->fd); } 
+    void kill() const noexcept {
         obj->state |= FILE_STATE::KILL;
+        Serial.end();
     }
 
     bool is_state( uchar value ) const noexcept {
@@ -46,44 +50,12 @@ protected:
 
     struct NODE {
         uchar        state    = FILE_STATE::OPEN;
-        ulong        range[2] ={ 0, 0 };
+        ulong        range[2] = { 0, 0 };
         bool         keep     = false;
-        int          fd       = -1;
-        int          feof     =  1;
+        int          feof     = 1;
         ptr_t<char>  buffer;
         string_t     borrow;
-        limit::probe_t limit_probe;
     };  ptr_t<NODE> obj;
-
-    bool is_std() const noexcept { return obj->fd>0 && obj->fd<3; }
-
-    /*─······································································─*/
-
-    virtual bool is_blocked( int& c ) const noexcept {
-        auto error = os::error(); if( c < 0 ){ return (
-             error == EWOULDBLOCK || error == EINPROGRESS ||
-             error == EALREADY    || error == EAGAIN
-    ); } return 0; }
-
-    /*─······································································─*/
-
-    virtual int set_nonbloking_mode() const noexcept {
-            int flags = fcntl( obj->fd, F_GETFL, 0 );
-        return fcntl( obj->fd, F_SETFL, flags | O_NONBLOCK );
-    }
-
-    /*─······································································─*/
-
-    uint get_fd_flag( const string_t& flag ){ uint _flag = O_NONBLOCK;
-          if( flag == "r"  ){ _flag |= O_RDONLY ;                     }
-        elif( flag == "w"  ){ _flag |= O_WRONLY | O_CREAT  | O_TRUNC; }
-        elif( flag == "a"  ){ _flag |= O_WRONLY | O_APPEND | O_CREAT; }
-        elif( flag == "r+" ){ _flag |= O_RDWR   | O_APPEND ;          }
-        elif( flag == "w+" ){ _flag |= O_RDWR   | O_APPEND | O_CREAT; }
-        elif( flag == "a+" ){ _flag |= O_RDWR   | O_APPEND ;          }
-        else                { _flag |= O_RDWR   ;                     }
-        return  _flag;
-    }
 
 public:
 
@@ -99,26 +71,19 @@ public:
 
     /*─······································································─*/
 
-    virtual ~file_t() noexcept { if( obj.count()>1 ){ return; } free(); }
+    serial_t( const uchar& port, const ulong& _size=CHUNK_SIZE ) : obj( new NODE() ) {
+        Serial.begin( port ); set_buffer_size( _size );
+    }
+
+    serial_t() noexcept : obj( new NODE() ) { set_state( FILE_STATE::CLOSE ); }
 
     /*─······································································─*/
 
-    file_t( const string_t& path, const string_t& mode, const ulong& _size=CHUNK_SIZE ) : obj( new NODE() ) {
-            obj->fd = open( path.data(), get_fd_flag( mode ), 0644 ); /*-----------*/
-        if( obj->fd < 0 ){ throw except_t("such file or directory does not exist"); }
-        set_nonbloking_mode(); set_buffer_size( _size );
-    }
-
-    file_t( const int& fd, const ulong& _size=CHUNK_SIZE ) : obj( new NODE() ) {
-        if( fd<0 ){ throw except_t("such file or directory does not exist"); }
-        obj->fd = fd; set_nonbloking_mode(); set_buffer_size( _size );
-    }
-     
-    file_t() noexcept : obj( new NODE() ) {}
+    virtual ~serial_t() noexcept { if( obj.count()>1 ){ return; } free(); }
 
     /*─······································································─*/
 
-    bool     is_closed() const noexcept { return is_state(FILE_STATE::DISABLE) || is_feof() || obj->fd==-1; }
+    bool     is_closed() const noexcept { return is_state(FILE_STATE::DISABLE) || is_feof() || obj->fd == -1; }
     bool       is_feof() const noexcept { return obj->feof <= 0 && obj->feof != -2; }
     bool  is_available() const noexcept { return !is_closed(); }
     bool is_persistent() const noexcept { return obj->keep; }
@@ -134,15 +99,15 @@ public:
 
     void close() const noexcept {
         if( is_state(FILE_STATE::DISABLE) ){ return; }
-        if( obj->keep==1 ){ stop(); goto DONE; }
-         set_state( FILE_STATE::CLOSE ); DONE:; 
+        if( obj->keep == 1 ) { stop(); goto DONE; }
+            set_state( FILE_STATE::CLOSE ); DONE:;
     onDrain.emit(); if( is_feof() ){ free(); } }
 
     /*─······································································─*/
 
-    void set_range( ulong x, ulong y ) const noexcept { obj->range[0] = x; obj->range[1] = y; }
-    ulong* get_range() const noexcept { return obj == nullptr ? nullptr : obj->range; }
-    int       get_fd() const noexcept { return obj == nullptr ?      -1 : obj->fd; }
+    void   set_range( ulong /*unused*/, ulong /*unused*/ ) const noexcept { }
+    ulong* get_range() const noexcept { return nullptr; }
+    int       get_fd() const noexcept { return 1; }
 
     /*─······································································─*/
 
@@ -160,11 +125,7 @@ public:
 
     /*─······································································─*/
 
-    ulong size() const noexcept { auto curr = pos();
-        if( lseek( obj->fd, 0 , SEEK_END )<0 ){ return 0; }
-        ulong size = lseek( obj->fd, 0, SEEK_END );
-        pos( curr ); return size;
-    }
+    ulong size() const noexcept { return -1; }
 
     /*─······································································─*/
 
@@ -178,7 +139,7 @@ public:
 
         if( is_state(FILE_STATE::REUSE) && obj.count() > 1 ){ resume(); return; }
         if( is_state(FILE_STATE::KILL ) ){ return; } close(); kill();
-       
+
         onUnpipe.clear(); onResume.clear();
         onError .clear(); onStop  .clear();
         onOpen  .clear(); onPipe  .clear();
@@ -188,15 +149,8 @@ public:
 
     /*─······································································─*/
 
-    ulong pos( ulong _pos ) const noexcept {
-        auto   _npos = lseek( obj->fd, _pos, SEEK_SET );
-        return _npos < 0 ? 0 : _npos;
-    }
-
-    ulong pos() const noexcept {
-        auto   _npos = lseek( obj->fd, 0, SEEK_CUR );
-        return _npos < 0 ? 0 : _npos;
-    }
+    ulong pos( ulong _pos ) const noexcept { return 0; }
+    ulong pos() const noexcept { return 0; }
 
     /*─······································································─*/
 
@@ -248,18 +202,25 @@ public:
 
     virtual int __read( char* bf, const ulong& sx ) const noexcept {
         if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
-        obj->feof = ::read( obj->fd, bf, sx );
-        obj->feof = is_blocked(obj->feof)? -2 : obj->feof;
-        if( obj->feof <= 0 && obj->feof != -2 ){ return -1; }
-        return obj->feof;
+        if(!Serial.available() ){ return -2; }
+
+        char x = 0; obj->feof = 0;
+
+        do { x = Serial.read();
+        if ( sx==obj->feof ){ break; }
+        if ( x == -1 )      { break; }
+             bf[obj->feof] = x;
+             obj->feof++;
+        } while( true );
+
+        Serial.flush(); return obj->feof;
     }
 
     virtual int __write( char* bf, const ulong& sx ) const noexcept {
         if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
-        obj->feof = ::write( obj->fd, bf, sx );
-        obj->feof = is_blocked(obj->feof)? -2 : obj->feof;
-        if( obj->feof <= 0 && obj->feof != -2 ){ return -1; }
-        return obj->feof;
+        if(!Serial.availableForWrite() ){ return -2; }
+        obj->feof= Serial.write( bf, sx );
+        Serial.flush(); return obj->feof;
     }
 
     /*─······································································─*/
@@ -283,3 +244,5 @@ public:
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/
+
+#endif

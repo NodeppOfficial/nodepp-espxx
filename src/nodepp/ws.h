@@ -1,8 +1,17 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_WS
 #define NODEPP_WS
-#ifndef SECRET
-#define SECRET "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-#endif
+#define NODEPP_WS_SECRET "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -13,90 +22,84 @@
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { class ws_t : public socket_t {
+protected:
+
+    struct NODE {
+        generator::ws::write write;
+        generator::ws::read  read ;
+    };  ptr_t<NODE> ws;
+
 public:
 
-    template< class... T > 
-    ws_t( const T&... args ) : socket_t(args...) {}
+    virtual ~ws_t() noexcept {}
 
-    /*─······································································─*/
+    template< class... T >
+    ws_t( const T&... args ) noexcept : socket_t( args... ), ws( new NODE() ){}
 
-    virtual int _read( char* bf, const ulong& sx ) const noexcept {
-        int    x = socket_t::_read( bf, sx );
-        return x<=0 ? x : read_ws_frame( bf, x );
+    virtual int _write( char* bf, const ulong& sx ) const noexcept override {
+        if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
+        while( ws->write( this, bf, sx )==1 ){ return -2; }
+        return ws->write.data==0 ? -1 : ws->write.data;
     }
-    
-    virtual int _write( char* bf, const ulong& sx ) const noexcept {
-        int    x = write_ws_frame( bf, sx );
-        return x<=0 ? x : socket_t::_write( bf, x );
-    } 
 
-}; }
+    virtual int _read ( char* bf, const ulong& sx ) const noexcept override {
+        if( is_closed() ){ return -1; } if( sx==0 ){ return 0; }
+        while( ws->read( this, bf, sx )==1 ){ return -2; }
+        return ws->read.data==0 ? -1 : ws->read.data;
+    }
+
+};}
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace nodepp { namespace ws {
 
-    tcp_t server( const tcp_t& server ){ server.onSocket([=]( socket_t cli ){
-        if ( !nodepp::WSServer( (http_t) cli ) ){ return; }
-        ptr_t<_file_::read> _read = new _file_::read;
-        cli.onDrain.once([=](){ cli.free(); });
+    tcp_t server( const tcp_t& skt ){ skt.onSocket([=]( socket_t cli ){
 
-        server.onConnect.once([=]( ws_t cli ){ cli.busy(); 
-        process::poll::add([=](){
-            if(!cli.is_available() ) { cli.close(); return -1; }
-            if((*_read)(&cli)==1 )   { return 1; }
-            if(  _read->c  <=  0 )   { return 1; }
-            cli.onData.emit(_read->y); return 1;
-        }) ; });
+        auto hrv = type::cast<http_t>(cli);
+        if( !generator::ws::server( hrv ) )
+          { skt.onConnect.skip(); return; }
 
-        process::task::add([=](){
-            cli.resume(); server.onConnect.emit(cli); return -1;
+        process::add([=](){
+            skt.onConnect.resume( );
+            skt.onConnect.emit(cli);
+            return -1;
         });
-        
-    }); return server; }
+
+    }); skt.onConnect([=]( ws_t cli ){
+        cli.onDrain.once([=](){ cli.free(); });
+        cli.set_timeout(0); cli.resume(); stream::pipe(cli);
+    }); return skt; }
 
     /*─······································································─*/
 
     tcp_t server( agent_t* opt=nullptr ){
-        auto server = http::server( [=]( http_t /*unused*/ ){}, opt );
-                        ws::server( server ); return server; 
+    auto skt = http::server( [=]( http_t ){}, opt );
+                 ws::server( skt ); return skt;
     }
 
     /*─······································································─*/
 
-    ws_t client( const string_t& url, agent_t* opt=nullptr ){
+    tcp_t client( const string_t& uri, agent_t* opt=nullptr ){
+    tcp_t skt   ( [=]( socket_t ){}, opt );
+    skt.onSocket.once([=]( socket_t cli ){
 
-        string_t hsh = crypto::genkey("abcdefghiABCDEFGHI0123456789",22);
-        string_t key = string::format("%s==",hsh.data());
-        ptr_t<_file_::read> _read = new _file_::read;
+        auto hrv = type::cast<http_t> (cli);
+        if( !generator::ws::client( hrv, uri ) )
+          { skt.onConnect.skip(); return; }
 
-        fetch_t args;
-                args.url = url;
-                args.headers = {{
-            { "Upgrade", "websocket" },
-            { "Connection", "Upgrade" },
-            { "Sec-Websocket-Key", key },
-            { "Sec-Websocket-Version", "13" }
-        }};
-
-        ws_t cli = nodepp::WSClient( http::fetch( args, opt ), key );
-             cli.onDrain.once([=](){ cli.free(); }); 
-
-        cli.onOpen.once([=](){ cli.busy(); 
-        process::poll::add([=](){
-            if(!cli.is_available() ) { cli.close(); return -1; }
-            if((*_read)(&cli)==1 )   { return 1; }
-            if(  _read->c  <=  0 )   { return 1; }
-            cli.onData.emit(_read->y); return 1;
-        }) ; });
-
-        process::task::add([=](){
-            cli.resume(); cli.onOpen.emit(); return -1;
+        process::add([=](){
+            skt.onConnect.resume( );
+            skt.onConnect.emit(cli);
+            return -1;
         });
 
-        return cli;
-    }
+    }); skt.onConnect.once([=]( ws_t cli ){
+        cli.onDrain.once([=](){ cli.free(); });
+        cli.set_timeout(0); cli.resume(); stream::pipe(cli);
+    }); skt.connect( url::hostname(uri), url::port(uri) ); return skt; }
 
 }}
 
+#undef NODEPP_WS_SECRET
 #endif

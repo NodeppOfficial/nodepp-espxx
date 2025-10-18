@@ -9,8 +9,8 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_QUERY
-#define NODEPP_QUERY
+#ifndef NODEPP_COOKIE
+#define NODEPP_COOKIE
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
@@ -19,17 +19,17 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { using query_t = map_t< string_t, string_t >;
-namespace query  {
+namespace nodepp { using cookie_t = map_t< string_t, string_t >;
+namespace cookie {
 
     query_t parse( string_t data ){
-        static regex_t reg("[?&]([^= ]+)=([^?&]+)");
+        static regex_t reg( "([^= ;]+)=([^;]+)" );
 
-        if( data.empty() || data[0]!='?' ){ return query_t(); } query_t out;
-        
+        if( data.empty() ){ return query_t(); } query_t out;
+
         reg.search_all( data ); auto mem = reg.get_memory();
         reg.clear_memory();
-
+        
         while( !mem.empty() ){ auto data = mem.splice( 0, 2 );
            if( data.size()!=2 ){ break; } 
                out[ data[0] ] = data[1];
@@ -38,11 +38,11 @@ namespace query  {
     
     /*─······································································─*/
     
-    string_t format( const query_t& data ){ 
+    string_t format( const cookie_t& data ){
         if( data.empty() ){ return nullptr; } /*------*/
         array_t<string_t> out; for( auto x:data.data() ) 
              { out.push( x.first + "=" + x.second ); }
-        return string::format("?%s",out.join("&").c_str());
+        return string::format("%s",out.join("; ").c_str());
     }
 
 }}

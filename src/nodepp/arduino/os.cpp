@@ -9,23 +9,17 @@
 
 namespace nodepp { namespace os {
     
-    string_t cwd(){ char buff[UNBFF_SIZE]; ::getcwd(buff,UNBFF_SIZE); return buff; }
-    
-    /*─······································································─*/
-
-    uint cpus(){ return ::sysconf( _SC_NPROCESSORS_ONLN ); }
-    
-    /*─······································································─*/
-
     void exit( int err=0 ){ ::exit(err); }
 
     /*─······································································─*/
 
-    string_t tmp(){ return "/tmp"; }
-
+    uint pid(){ return ::getpid(); }
+    
     /*─······································································─*/
 
-    uint pid(){ return ::getpid(); }
+    string_t tmp(){ return "/"; }
+
+    string_t cwd(){ return "/"; }
 
     /*─······································································─*/
 

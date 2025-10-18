@@ -9,18 +9,15 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_FILE
-#define NODEPP_FILE
+#ifndef NODEPP_MUTEX
+#define NODEPP_MUTEX
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 #if _KERNEL_ == NODEPP_KERNEL_ARDUINO
-    #include "os.h"
-    #include "event.h"
-    #include "generator.h"
-    #include "arduino/file.cpp"
+    #include "arduino/mutex.cpp"
 #else
-    #error "This OS Does not support file.h"
+    #error "This OS Does not support mutex.h"
 #endif
 
 /*────────────────────────────────────────────────────────────────────────────*/

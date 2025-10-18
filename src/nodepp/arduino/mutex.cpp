@@ -9,62 +9,68 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#ifndef NODEPP_EXCEPT
-#define NODEPP_EXCEPT
+#pragma once
+#include <pthread.h>
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { class except_t {
+namespace nodepp { namespace worker {
+
+    void delay( ulong time ){ process::delay(time); }
+    void yield(){ delay(TIMEOUT); sched_yield(); }
+    int    pid(){ return (int)pthread_self(); }
+    void  exit(){ pthread_exit(NULL); }
+
+}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { class mutex_t {
 protected:
 
     struct NODE {
-        void *ev = nullptr;
-        string_t msg;
+        bool /*-*/ state=0;
+        pthread_mutex_t fd;
     };  ptr_t<NODE> obj;
 
 public:
 
-    virtual ~except_t() noexcept {
-        if( obj->ev == nullptr ){ return; }
-   	    process::onSIGERR.off( obj->ev );
+    mutex_t() : obj( new NODE() ) {
+        if( pthread_mutex_init(&obj->fd,NULL)!=0 )
+          { throw except_t("Cant Start Mutex");  }
+            /*-----------------*/ obj->state=1;
     }
 
-    except_t() noexcept : obj( new NODE() ) {}
+    virtual ~mutex_t() noexcept {
+        if( obj->state == 0 ){ return; }
+        if( obj.count() > 1 ){ return; }
+    free(); }
 
     /*─······································································─*/
 
-    template< class T, class = typename type::enable_if<type::is_class<T>::value,T>::type >
-    except_t( const T& except_type ) noexcept : obj(new NODE()) {
-        obj->msg = except_type.what(); auto inp = type::bind( this );
-        obj->ev  = process::onSIGERR.once([=]( ... ){ inp->print(); });
-    }
-
-    /*─······································································─*/
-
-    template< class... T >
-    except_t( const T&... msg ) noexcept : obj(new NODE()) {
-        obj->msg = string::join( " ", msg... ); auto inp = type::bind( this );
-        obj->ev  = process::onSIGERR.once([=]( ... ){ inp->print(); });
+    void free() const noexcept {
+        if( obj->state == 0 ){ return; }
+        /*----------*/ obj->state = 0;
+        pthread_mutex_destroy(&obj->fd);
     }
 
     /*─······································································─*/
 
-    except_t( const string_t& msg ) noexcept : obj(new NODE()) {
-        obj->msg = msg; auto inp = type::bind( this );
-        obj->ev  = process::onSIGERR.once([=]( ... ){ inp->print(); });
+    template< class T, class... V >
+    void emit( T callback, const V&... args ) const noexcept {
+         lock(); callback( args... ); unlock();
     }
 
     /*─······································································─*/
 
-    void       print() const noexcept { console::error(obj->msg); }
-    bool       empty() const noexcept { return obj->msg.empty(); }
-    const char* what() const noexcept { return obj->msg.c_str(); }
-    operator   char*() const noexcept { return (char*)what(); }
-    string_t    data() const noexcept { return obj->msg; }
-    string_t   value() const noexcept { return obj->msg; }
+    void unlock() const noexcept { while( !_unlock() ){ worker::yield(); } }
+    void lock()   const noexcept { while( !_lock  () ){ worker::yield(); } }
+
+    /*─······································································─*/
+
+    inline bool _unlock() const noexcept { return pthread_mutex_unlock(&obj->fd)==0; }
+    inline bool _lock()   const noexcept { return pthread_mutex_lock  (&obj->fd)==0; }
 
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/
-
-#endif

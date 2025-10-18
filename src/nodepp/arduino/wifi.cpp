@@ -1,3 +1,14 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+ /*────────────────────────────────────────────────────────────────────────────*/
+
 #pragma once
 
 /*────────────────────────────────────────────────────────────────────────────*/
@@ -9,82 +20,136 @@
 namespace nodepp { class wifi_t {
 private:
 
-    using INFO = wireless_scan_head;
+    using NODE_CLB = function_t<void,ptr_t<const wifi_t>>;
 
 protected:
 
-    struct NODE { int sockfd; };
-    ptr_t <NODE> obj;
+    struct NODE {
+        wifi_config_t wifi_cfg;
+        wifi_init_config_t cfg;
+        int   state = 1;
+    };  ptr_t<NODE> obj;
 
 public:
 
+    event_t<>                    onClose;
+    event_t<except_t>            onError;
+    event_t<ptr_t<const wifi_t>> onOpen;
+
+    /*─······································································─*/
+
     virtual ~wifi_t() noexcept {
-        if( obj.count() > 1 ){ return; } 
-        iw_sockets_close( obj->sockfd ); 
+        if( obj.count() > 1 ){ return; }
+        if( obj->state == 0 ){ return; }
+        obj->state = 0; onClose.emit();
     }
 
-    wifi_t() : obj( new NODE() ) { 
-        obj->sockfd = iw_sockets_open(); if( obj->sockfd<0 )
-             process::error("Failed to open Wi-Fi adapter");
+    wifi_t() noexcept : obj( new NODE() ) {
+        obj->cfg = WIFI_INIT_CONFIG_DEFAULT(); esp_wifi_init( &obj->cfg );
+        esp_wifi_set_storage( WIFI_STORAGE_RAM );
+        esp_wifi_set_mode   ( WIFI_MODE_NULL );
     }
 
-    int turn_on( const string_t& device ) const noexcept {
-        return system(string::format("ifconfig %s down",device.data()).c_str());
-    }
+    /*─······································································─*/
 
-    int turn_off( const string_t& device ) const noexcept {
-        return system(string::format("ifconfig %s up",device.data()).c_str());
-    }
+    int close() const noexcept { return turn_off(); }
 
-    string_t get_hostname( const string_t& device ) const noexcept {
-        struct ifaddrs *interfaces = NULL;
-        struct ifaddrs *temp_addr  = NULL;
-        string_t result;
+    int turn_on() const noexcept { return esp_wifi_start() == ESP_OK; }
 
-        if ( getifaddrs(&interfaces) == 0 ) {
-            temp_addr = interfaces; while (temp_addr!=NULL) {
-                if ( temp_addr->ifa_addr->sa_family == AF_INET ) {
-                if ( strcmp(temp_addr->ifa_name,device.c_str()) == 0 ) {
-                    result = inet_ntoa(((struct sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
-                }}  temp_addr = temp_addr->ifa_next;
-            }
+    int turn_off() const noexcept { return esp_wifi_stop() == ESP_OK; }
+
+    /*─······································································─*/
+
+    void listen( const string_t& ssid, const string_t& pass, int channel, NODE_CLB clb ) const {
+        auto self = type::bind( this );
+    process::add([=](){
+
+        self->obj->wifi_cfg.ap.channel        = channel;
+        self->obj->wifi_cfg.ap.max_connection = MAX_SOCKET;
+        memcpy( self->obj->wifi_cfg.ap.ssid, ssid.get(), min( (uchar)32, (uchar)ssid.size() ));
+
+        if( !pass.empty() ){
+            memcpy( self->obj->wifi_cfg.ap.password, pass.get(), min( (uchar)32, (uchar)pass.size() ));
+            /*---*/ self->obj->wifi_cfg.ap.authmode = WIFI_AUTH_WPA2_PSK;
         }
 
-        freeifaddrs(interfaces); return result;
+        if( self->turn_on() )
+          { self->onError.emit( except_t( "can't turn on wifi device" ) ); return -1; }
+          
+        esp_wifi_set_mode  ( WIFI_MODE_AP );
+        esp_wifi_set_config( WIFI_IF_AP, &self->obj->wifi_cfg );
+
+        if( esp_wifi_start() != ESP_OK )
+          { self->onError.emit( except_t( "can't start wifi mode" ) ); return -1; }
+
+        clb( self ); self->onOpen.emit( self );
+
+    return -1; });
     }
 
-    array_t<string_t> get_device_list() const noexcept {
-        struct ifaddrs *interfaces = NULL;
-        struct ifaddrs *temp_addr  = NULL;
-        array_t<string_t> result;
+    /*─······································································─*/
 
-        if ( getifaddrs(&interfaces) == 0 ) {
-            temp_addr = interfaces; while (temp_addr!=NULL) {
-                if ( temp_addr->ifa_addr->sa_family == AF_INET ) {
-                    result.push( temp_addr->ifa_name );
-                }   temp_addr = temp_addr->ifa_next;
-            }
+    void connect( const string_t& ssid, const string_t& pass, NODE_CLB clb ) const {
+        auto self = type::bind( this );
+    process::add([=](){
+
+        memcpy( self->obj->wifi_cfg.sta.ssid    , ssid.get(), min( (uchar)32, (uchar)ssid.size() ));
+        memcpy( self->obj->wifi_cfg.sta.password, pass.get(), min( (uchar)32, (uchar)pass.size() ));
+
+        if( self->turn_on() )
+          { self->onError.emit( except_t( "can't turn on wifi device" ) ); return -1; }
+
+        esp_wifi_set_mode  ( WIFI_MODE_STA );
+        esp_wifi_set_config( WIFI_IF_STA, &self->obj->wifi_cfg );
+
+        if( esp_wifi_start() != ESP_OK )
+          { self->onError.emit( except_t( "can't start wifi mode" ) ); return -1; }
+
+        if( esp_wifi_connect() != ESP_OK )
+          { self->onError.emit( except_t( "can't connect to ssid" ) ); return -1; }
+
+        clb( self ); self->onOpen.emit( self );
+
+    return -1; });
+    }
+
+    /*─······································································─*/
+
+    array_t<wifi_ap_record_t> get_devices() const {
+
+        wifi_scan_config_t scan_config;
+        scan_config.show_hidden = true;
+        scan_config.ssid    = 0;
+        scan_config.channel = 0;
+        scan_config.bssid   = 0;
+
+        if( turn_on() )
+          { return nullptr; }
+
+        if( esp_wifi_scan_start( &scan_config, true ) != ESP_OK )
+          { return nullptr; }
+
+        if( esp_wifi_connect() == ESP_OK ) {
+            uint16_t len = 0; ptr_t<wifi_ap_record_t> ap_info;
+            esp_wifi_scan_get_ap_num(&len); ap_info.resize(len);
+            esp_wifi_scan_get_ap_records(&len,&ap_info);
+            return ap_info;
         }
 
-        freeifaddrs(interfaces); return result;
+        return nullptr;
+
+    }); }
+
+    /*─······································································─*/
+
+    void listen( const string_t& ssid, const string_t& pass, int channel ) const {
+         listen( ssid, pass, channel, [=]( ptr_t<const wifi_t> ){} );
     }
 
-    array_t<string_t> get_ssid_list( const string_t& device ) const noexcept {
-        wireless_scan     *scan_result = nullptr;
-        iw_bss            *bss         = nullptr;
-        wireless_scan_head scan_head;
-        array_t<string_t>  list;
-
-        if( iw_scan(obj->sockfd,device.c_str(),0,&scan_result)<0 ) { return list; }
-
-        for( bss = scan_result->result; bss; bss = bss->next ) {
-            char ssid[IW_ESSID_MAX_SIZE + 1];
-            iw_ether_ntop(&bss->bssid, ssid);
-            list.push( ssid );
-        }
-        
-        return list;
+    void connect( const string_t& ssid, const string_t& pass ) const {
+         connect( ssid, pass, [=]( ptr_t<const wifi_t> ){} );
     }
+
 };}
 
 /*────────────────────────────────────────────────────────────────────────────*/

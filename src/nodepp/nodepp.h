@@ -1,91 +1,91 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_NODEPP
 #define NODEPP_NODEPP
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
 #include "import.h"
-#include "task.h"
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp { namespace process {
-
-    array_t<string_t> args; int threads = 0;
+namespace nodepp { namespace process { loop_t _loop_;
 
     /*─······································································─*/
 
-    ulong size(){ 
-        return process::poll::size() + 
-               process::task::size() + 
-               process::loop::size() + 
-               process::threads      ; 
-    }
-    
-    /*─······································································─*/
+    ulong size(){ return _TASK_ + _loop_.size(); }
 
-    void start( int argc, char** args ){
-        int i=0; do {
-            process::args.push(args[i]);
-        }   while( i ++< argc - 1 );
-    }
+    void clear(){ _TASK_=0; _loop_.clear(); }
+
+    bool empty(){ return size() <= 0; }
 
     /*─······································································─*/
 
-    int next(){
-        static int x = 0;   
-    coStart
+    void exit( int err=0 ){ _EXIT_=true; clear(); ::exit(err); }
 
-        x = process::task::size(); while( x-->0 ){ process::task::next(); coNext; }
-        x = process::loop::size(); while( x-->0 ){ process::loop::next(); coNext; }
-        x = process::poll::size(); while( x-->0 ){ process::poll::next(); coNext; }
+    bool should_close(){ return _EXIT_ || empty(); }
 
-    coStop
+    void clear( void* address ){
+         if( address == nullptr ){ return; }
+         memset( address, 0, sizeof(bool) );
     }
-    
+
+    /*─······································································─*/
+
+    int next(){ static uchar count=0; if( count%64==0 ){ yield(); }
+    count++ ; coStart
+        if( !_loop_.empty() ) { _loop_.next(); coNext; }
+    coStop }
+
     /*─······································································─*/
 
     template< class... T >
-    void add( const T&... args ){ process::loop::add( args... ); }
+    void* loop( const T&... args ){ return _loop_.add( args... ); }
+
+    template< class... T >
+    void* add ( const T&... args ){ return _loop_.add( args... ); }
 
     /*─······································································─*/
 
-    template< class T >
-    void error( T& ev, const string_t& msg ){ _EERROR( ev, msg ); }
+    template< class T, class... V >
+    void await( T cb, const V&... args ){ ++_TASK_;
+         while( cb( args... )>=0 && !should_close() )
+              { process::next(); }
+    --_TASK_; }
 
-    void error( const string_t& msg ){ _ERROR( msg ); }
+}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace process { array_t<string_t> args;
+
+    template< class... T >
+    void error( const T&... msg ){ ARDUINO_ERROR( msg... ); }
+
+    void reset(){ void(*callback) (void)=0; callback(); }
 
     /*─······································································─*/
 
-    template< class T, class... V > 
-    void await( T cb, const V&... args ){
-        while( cb( args... ) >= 0 )
-             { next(); }
+    void start(){ process::yield(); }
+
+    /*─······································································─*/
+
+    void stop(){
+        while(!process::should_close() )
+             { process::next(); }
+        process::exit(1);
     }
-    
-    /*─······································································─*/
 
-    void clear(){ 
-        process::task::clear();
-        process::poll::clear(); 
-        process::loop::clear(); 
-        process::threads = 0; 
-    }
-    
     /*─······································································─*/
-
-    bool empty(){ return ( 
-        process::task::empty() && 
-        process::poll::empty() && 
-        process::loop::empty() && 
-        process::threads < 1 
-    ) ; }
-    
-    /*─······································································─*/
-
-    void pipe(){
-        while( !process::empty() )
-                process::next();
-    }
 
 }}
 

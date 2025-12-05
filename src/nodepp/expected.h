@@ -1,58 +1,48 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_EXPECTED
 #define NODEPP_EXPECTED
+
+#include "any.h"
 
 namespace nodepp {
 template <typename T, typename E> struct expected_t { 
 protected:
 
-    bool hasValue; union {
-       T data; E err;
-    };
+    bool has; any_t data;
 
 public:
 
-    expected_t( const T& val ) : hasValue(true) , data(val) {}
+    expected_t( const T& val ) { has = true; data = val; }
 
-    expected_t( const E& err ) : hasValue(false), err(err) {}
+    expected_t( const E& err ) { has = false;data = err; }
 
-    /*─······································································─*/
-
-    bool has_value() const { return hasValue; }
+    virtual ~expected_t() noexcept {}
 
     /*─······································································─*/
 
-    T& value() {
-        if ( !hasValue ) {
-            process::error("expected does not have a value");
-        }   return data;
-    }
-
-    const T& value() const {
-        if ( !hasValue ) {
-            process::error("expected does not have a value");
-        }   return data;
-    }
+    bool has_value() const noexcept { return has; }
 
     /*─······································································─*/
 
-    E& error() {
-        if ( hasValue ) {
-            process::error("expected does not have an error");
-        }   return err;
-    }
-
-    const E& error() const {
-        if ( hasValue ) {
-            process::error("expected does not have an error");
-        }   return err;
-    }
+    T value() const { if ( !has_value() || !data.has_value() ) {
+        ARDUINO_ERROR("expected does not have a value");
+    }   return data.as<T>(); }
 
     /*─······································································─*/
 
-    virtual ~expected_t() {
-        if( hasValue ){ data.~T(); } 
-        else          { err .~E(); }
-    }
+    E error() const { if ( has_value() || !data.has_value() ) {
+        ARDUINO_ERROR("expected does not have a value");
+    }   return data.as<E>(); }
 
 };}
 

@@ -3,8 +3,10 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-#if _KERNEL == NODEPP_KERNEL_ARDUINO
-    #include "arduino/wifi.cpp"
+#if _KERNEL_ == NODEPP_KERNEL_ARDUINO
+    #include "dns.h"
+    #include "event.h"
+    #include "arduino/wifi.h"
 #else
     #error "This OS Does not support wifi.h"
 #endif

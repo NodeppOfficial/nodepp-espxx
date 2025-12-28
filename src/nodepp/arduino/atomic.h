@@ -20,7 +20,7 @@
 
 namespace nodepp { 
 template< class T, class = typename type::enable_if<type::is_trivially_copyable<T>::value,T>::type >
-class atomic_t   { private: volatile T value; protected: 
+class atomic_t   { private: T value; protected: 
 
     void cpy( const atomic_t& other ) noexcept { 
          memcpy( &value, &other.value, sizeof( T ) );

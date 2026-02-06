@@ -1,3 +1,14 @@
+/*
+ * Copyright 2023 The Nodepp Project Authors. All Rights Reserved.
+ *
+ * Licensed under the MIT (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://github.com/NodeppOfficial/nodepp/blob/main/LICENSE
+ */
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
 #ifndef NODEPP_ZLIB
 #define NODEPP_ZLIB
 
@@ -10,189 +21,281 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace nodepp {
+namespace nodepp { class zlib_t {
+protected:
 
-/*────────────────────────────────────────────────────────────────────────────*/
+    struct NODE {
+        z_stream  fd;
+        bool state= 1;
+        int  mode = 0;
+        int  type = 0;
+        ptr_t<char> bff;
+    };  ptr_t<NODE> obj;
 
-namespace { template< class T >
-string_t _inflate_( const string_t& input, const T& onData ){ z_stream stream;
-    string_t output; char buffer[UNBFF_SIZE]; ulong size=0;
+    void _init_() const noexcept {
+        obj->fd.zfree    = Z_NULL;
+        obj->fd.zalloc   = Z_NULL;
+        obj->fd.opaque   = Z_NULL;
+        obj->fd.next_in  = Z_NULL;
+        obj->fd.avail_in = Z_NULL;
+    }
 
-    stream.zfree     = Z_NULL;
-    stream.zalloc    = Z_NULL;
-    stream.opaque    = Z_NULL;
-    stream.avail_in  = input.size();
-    stream.next_in   = (Bytef*)input.c_str();
+public:
 
-    if( onData( &stream ) != Z_OK )
-        process::error("Failed to initialize zlib for decompression."); 
+    event_t<except_t>  onError;
+    event_t<>          onDrain;
+    event_t<>          onClose;
+    event_t<>          onOpen;
+    event_t<string_t>  onData;
     
-    do {
-
-        stream.avail_out = UNBFF_SIZE;
-        stream.next_out  = (Bytef*)buffer;
-        int x = ::inflate( &stream, Z_FINISH );
-
-        if(( size=UNBFF_SIZE-stream.avail_out )==0 ){
-            output += string_t( buffer, size );
-        }
-
-        if( x == Z_STREAM_END ){ break; } else if( x < 0 ) {
-            process::error( string::format("Compression failed: %s",stream.msg) ); 
-        }
+    /*─······································································─*/
     
-    } while ( stream.avail_in == 0 ); inflateEnd(&stream); return output;
-}}
+   ~zlib_t() noexcept { if( obj.count()>1 || obj->state==0 ){ return; } free(); }
 
-/*────────────────────────────────────────────────────────────────────────────*/
+    zlib_t( int type=0, ulong size=CHUNK_SIZE ) noexcept : obj( new NODE ) { 
+        obj->bff  = ptr_t<char>( size ); 
+        obj->type = type; _init_(); 
+    }
 
-namespace { template< class T >
-string_t _deflate_( const string_t& input, const T& onData ){ z_stream stream;
-    string_t output; char buffer[UNBFF_SIZE]; ulong size=0;
-
-    stream.zfree     = Z_NULL;
-    stream.zalloc    = Z_NULL;
-    stream.opaque    = Z_NULL;
-    stream.avail_in  = input.size();
-    stream.next_in   = (Bytef*)input.c_str();
-
-    if( onData( &stream ) != Z_OK )
-        process::error("Failed to initialize zlib for compression."); 
+    /*─······································································─*/
     
-    do {
-
-        stream.avail_out = UNBFF_SIZE;
-        stream.next_out  = (Bytef*)buffer;
-        int x = ::deflate( &stream, Z_FINISH );
-
-        if(( size=UNBFF_SIZE-stream.avail_out )==0 ){
-            output += string_t( buffer, size );
-        }
-
-        if( x == Z_STREAM_END ){ break; } else if( x < 0 ) {
-            process::error( string::format("Compression failed: %s",stream.msg) ); 
-        }
-
-    } while ( stream.avail_in == 0 ); deflateEnd(&stream); return output;
-}}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace zlib { namespace rawinflate {
-
-    string_t get( const string_t& input ){
-        return nodepp::_inflate_( input, []( z_stream* stream ){
-            return inflateInit( stream );
-        });        
-    }
-
-    template< class... T >
-    void pipe( const T&... file ){ _zlib_::inflate arg;
-        process::poll::add( arg, file..., []( z_stream* stream ){
-            return inflateInit( stream );
-        });
-    }
-
-}}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace zlib { namespace inflate {
-    
-    string_t get( const string_t& input ){
-        return nodepp::_inflate_( input, []( z_stream* stream ){
-            return inflateInit2( stream, -15 );
-        });
-    }
-
-    template< class... T >
-    void pipe( const T&... file ){ _zlib_::inflate arg;
-        process::poll::add( arg, file..., []( z_stream* stream ){
-            return inflateInit2( stream, -15 );
-        });
-    }
-
-}}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace zlib { namespace gunzip {
-
-    string_t get( const string_t& input ){
-        return nodepp::_inflate_( input, []( z_stream* stream ){
-            return inflateInit2( stream, 15|32 );
-        });        
-    }
-
-    template< class... T >
-    void pipe( const T&... file ){ _zlib_::inflate arg;
-        process::poll::add( arg, file..., []( z_stream* stream ){
-            return inflateInit2( stream, 15|32 );
-        });
-    }
-    
-}}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace zlib { namespace rawdeflate {
-
-    string_t get( const string_t& input ){
-        return nodepp::_deflate_( input, []( z_stream* stream ){
-            return deflateInit( stream, Z_DEFAULT_COMPRESSION );
-        });        
-    }
-    
-    template< class... T >
-    void pipe( const T&... file ){ _zlib_::inflate arg;
-        process::poll::add( arg, file..., []( z_stream* stream ){
-            return deflateInit( stream, Z_DEFAULT_COMPRESSION );
-        });
-    }
-
-}}
-
-/*────────────────────────────────────────────────────────────────────────────*/
-
-namespace zlib { namespace deflate {
-
-    string_t get( const string_t& input ){
-        return nodepp::_deflate_( input, []( z_stream* stream ){
-            return deflateInit2( stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15,8, Z_DEFAULT_STRATEGY );
-        });        
+    void free() const noexcept {
+        if( obj->state == 0 ){ return; } obj->state = 0;
+        if( obj->mode  ==-1 ){ inflateEnd( &obj->fd ); }
+        if( obj->mode  == 1 ){ deflateEnd( &obj->fd ); }
+        onDrain.emit(); onClose.emit();
     }
     
     /*─······································································─*/
 
-    template< class... T >
-    void pipe( const T&... file ){ _zlib_::deflate arg;
-        process::poll::add( arg, file..., []( z_stream* stream ){
-            return deflateInit2( stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY );
-        });
-    } 
-}}
+    void        close() const noexcept { free(); }
+    bool    is_closed() const noexcept { return obj->state == 0; }
+    bool is_available() const noexcept { return obj->state == 1; }
+    
+    /*─······································································─*/
 
-/*────────────────────────────────────────────────────────────────────────────*/
+    string_t update_inflate( string_t data, int mode=Z_PARTIAL_FLUSH ) const noexcept {
+        if( is_closed() || data.size() == 0 || obj->mode < 0 ){ return nullptr; }
 
-namespace zlib { namespace gzip {
+        if( obj->mode == 0 ){ if( inflateInit2( &obj->fd, obj->type ) != Z_OK ){ 
+            onError.emit( "Failed to initialize zlib for decompression." ); close(); return nullptr;
+        } onOpen.emit(); obj->mode = 1; } string_t output; ulong size =0;
+        
+            obj->fd.avail_in = data.size();
+            obj->fd.avail_out= obj->bff.size();
+            obj->fd.next_in  = (Bytef*)data.get();
+            obj->fd.next_out = (Bytef*)obj->bff.get();
+        
+            auto x = ::inflate( &obj->fd, mode );
 
-    string_t get( const string_t& input ){
-        return nodepp::_deflate_( input, []( z_stream* stream ){
-            return deflateInit2( stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15|16, 8, Z_DEFAULT_STRATEGY );
-        });        
+            if(( size=obj->bff.size()-obj->fd.avail_out )>0 ){
+                auto raw = string_t( obj->bff.get(), size );
+            if( onData.empty() ){ output += raw; } else {
+                onData.emit( raw );
+            }}
+
+            if( x == Z_STREAM_END ){ return output; } elif( x < 0 ) {
+                onError.emit( except_t( "Compression failed:", obj->fd.msg ) );
+                close(); return nullptr;
+            }
+
+        return output;
+        
     }
 
-    template< class... T >
-    void pipe( const T&... file ){ _zlib_::deflate arg;
-        process::poll::add( arg, file..., []( z_stream* stream ){
-            return deflateInit2( stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15|16, 8, Z_DEFAULT_STRATEGY );
-        });
-    } 
+    string_t update_deflate( string_t data, int mode=Z_PARTIAL_FLUSH ) const noexcept { 
+        if( is_closed() || data.size() == 0 || obj->mode > 0 ){ return nullptr; }
+        
+        if( obj->mode == 0 ){ if( deflateInit2( &obj->fd, Z_DEFAULT_COMPRESSION, Z_DEFLATED, obj->type, 8, Z_DEFAULT_STRATEGY ) != Z_OK ){ 
+            onError.emit( "Failed to initialize zlib for compression." ); close(); return nullptr;
+        } onOpen.emit(); obj->mode = -1; } string_t output; ulong size =0;
 
-}}
+            obj->fd.avail_in = data.size();
+            obj->fd.avail_out= obj->bff.size();
+            obj->fd.next_in  = (Bytef*)data.get();
+            obj->fd.next_out = (Bytef*)obj->bff.get();
+        
+            auto x = ::deflate( &obj->fd, mode );
+
+            if(( size=obj->bff.size()-obj->fd.avail_out )>0 ){
+                auto raw = string_t( obj->bff.get(), size );
+            if( onData.empty() ){ output += raw; } else {
+                onData.emit( raw );
+            }}
+
+            if( x == Z_STREAM_END ){ return output; } elif( x < 0 ) {
+                onError.emit( except_t( "Compression failed:", obj->fd.msg ) );
+                close(); return nullptr;
+            }
+
+        return output;
+        
+    }
+
+};}
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-}
+namespace nodepp { namespace zlib { namespace inflate {
+
+    inline string_t get( const string_t& data ){ return zlib_t(15).update_inflate(data,Z_FINISH); }
+
+    template< class T, class V >
+    ptr_t<task_t> pipe( const T& fa, const V& fb ){ 
+           generator::zlib::pipe_inflate task; auto zlib = zlib_t(15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa, fb ); }
+
+    template< class T >
+    ptr_t<task_t> pipe( const T& fa ){ 
+           generator::zlib::pipe_inflate task; auto zlib = zlib_t(15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa ); }
+
+    template< class V, class... T >
+    string_t await( const V& file, const T&... args ){ string_t out;
+        generator::zlib::pipe_inflate task; auto zlib =zlib_t(15);
+        file.onData([&]( string_t data ){ out += data; });
+        process::await( task, zlib, file, args... );
+    return out; }
+    
+    inline zlib_t get(){ return zlib_t(15); }
+
+}}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace zlib { namespace deflate {
+
+    inline string_t get( const string_t& data ){ return zlib_t(15).update_deflate(data,Z_FINISH); }
+
+    template< class T, class V >
+    ptr_t<task_t> pipe( const T& fa, const V& fb ){ 
+           generator::zlib::pipe_deflate task; auto zlib = zlib_t(15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa, fb ); }
+
+    template< class T >
+    ptr_t<task_t> pipe( const T& fa ){ 
+           generator::zlib::pipe_deflate task; auto zlib = zlib_t(15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa ); }
+
+    template< class V, class... T >
+    string_t await( const V& file, const T&... args ){ string_t out;
+        generator::zlib::pipe_deflate task; auto zlib =zlib_t(15);
+        file.onData([&]( string_t data ){ out += data; });
+        process::await( task, zlib, file, args... );
+    return out; }
+    
+    inline zlib_t get(){ return zlib_t(15); }
+
+}}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace zlib { namespace raw_inflate {
+
+    inline string_t get( const string_t& data ){ return zlib_t(-15).update_inflate(data,Z_FINISH); }
+
+    template< class T, class V >
+    ptr_t<task_t> pipe( const T& fa, const V& fb ){ 
+           generator::zlib::pipe_inflate task; auto zlib = zlib_t(-15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa, fb ); }
+
+    template< class T >
+    ptr_t<task_t> pipe( const T& fa ){ 
+           generator::zlib::pipe_inflate task; auto zlib = zlib_t(-15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa ); }
+
+    template< class V, class... T >
+    string_t await( const V& file, const T&... args ){ string_t out;
+        generator::zlib::pipe_inflate task; auto zlib =zlib_t(-15);
+        file.onData([&]( string_t data ){ out += data; });
+        process::await( task, zlib, file, args... );
+    return out; }
+    
+    inline zlib_t get(){ return zlib_t(-15); }
+
+}}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace zlib { namespace raw_deflate {
+
+    inline string_t get( const string_t& data ){ return zlib_t(-15).update_deflate(data,Z_FINISH); }
+
+    template< class T, class V >
+    ptr_t<task_t> pipe( const T& fa, const V& fb ){ 
+           generator::zlib::pipe_deflate task; auto zlib = zlib_t(-15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa, fb ); }
+
+    template< class T >
+    ptr_t<task_t> pipe( const T& fa ){ 
+           generator::zlib::pipe_deflate task; auto zlib = zlib_t(-15);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa ); }
+
+    template< class V, class... T >
+    string_t await( const V& file, const T&... args ){ string_t out;
+        generator::zlib::pipe_deflate task; auto zlib =zlib_t(-15);
+        file.onData([&]( string_t data ){ out += data; });
+        process::await( task, zlib, file, args... );
+    return out; }
+    
+    inline zlib_t get(){ return zlib_t(-15); }
+
+}}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace zlib { namespace gunzip {
+
+    inline string_t get( const string_t& data ){ return zlib_t(15|32).update_inflate(data,Z_FINISH); }
+
+    template< class T, class V >
+    ptr_t<task_t> pipe( const T& fa, const V& fb ){ 
+           generator::zlib::pipe_inflate task; auto zlib = zlib_t(15|32);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa, fb ); }
+
+    template< class T >
+    ptr_t<task_t> pipe( const T& fa ){ 
+           generator::zlib::pipe_inflate task; auto zlib = zlib_t(15|32);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa ); }
+
+    template< class V, class... T >
+    string_t await( const V& file, const T&... args ){ string_t out;
+        generator::zlib::pipe_inflate task;auto zlib=zlib_t(15|32);
+        file.onData([&]( string_t data ){ out += data; });
+        process::await( task, zlib, file, args... );
+    return out; }
+    
+    inline zlib_t get(){ return zlib_t(15|32); }
+    
+}}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
+
+namespace nodepp { namespace zlib { namespace gzip {
+
+    inline string_t get( const string_t& data ){ return zlib_t(15|16).update_deflate(data,Z_FINISH); }
+
+    template< class T, class V >
+    ptr_t<task_t> pipe( const T& fa, const V& fb ){ 
+           generator::zlib::pipe_deflate task; auto zlib = zlib_t(15|16);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa, fb ); }
+
+    template< class T >
+    ptr_t<task_t> pipe( const T& fa ){ 
+           generator::zlib::pipe_deflate task; auto zlib = zlib_t(15|16);
+    return process::poll( fa, POLL_STATE::READ | POLL_STATE::EDGE, task, 0UL, zlib, fa ); }
+
+    template< class V, class... T >
+    string_t await( const V& file, const T&... args ){ string_t out;
+        generator::zlib::pipe_deflate task;auto zlib=zlib_t(15|16);
+        file.onData([&]( string_t data ){ out += data; });
+        process::await( task, zlib, file, args... );
+    return out; }
+    
+    inline zlib_t get(){ return zlib_t(15|16); }
+
+}}}
+
+/*────────────────────────────────────────────────────────────────────────────*/
 
 #endif
